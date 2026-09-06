@@ -89,6 +89,7 @@ Novelai-harness/
 │   ├── data/                                   # 数据与服务层
 │   │   ├── models/
 │   │   │   ├── novelai_models.dart             # 聚合导出 barrel 文件 (保持模块引用解耦)
+│   │   │   ├── image_palette.dart              # 图片主色盘模型 (ImagePalette/PaletteColor) 与种子色文本互转
 │   │   │   ├── inpaint_models.dart             # 局部修复与焦点特写模型 (InpaintMode/Geometry/BrushStroke/Params)
 │   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举 (含 inpaintModelId)
 │   │   │   ├── nai_character_prompt.dart       # 多角色提示词模型、位置布局与坐标量化
@@ -110,6 +111,7 @@ Novelai-harness/
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
 │   │   │   ├── image_edit_service.dart         # 外部绘图模型整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图)
 │   │   │   ├── image_metadata_service.dart     # PNG Chunks 与 Alpha LSB 隐写读取、元数据脱敏抹除与注入
+│   │   │   ├── palette_service.dart            # 图片主色盘提取 (MD3 Celebi 量化+Score 打分，后台 Isolate，LRU 缓存)
 │   │   │   ├── tag_dictionary_service.dart     # 32万+ Danbooru 离线词库检索、官方专属词同构合并、年代标签动态合成、多模态反查与缓存服务 (后台 Isolate)
 │   │   │   ├── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减、注释禁用与 SD 语法转换引擎
 │   │   │   ├── prompt_token_counter_service.dart # 提示词 Token 计数单一事实源 (T5/Qwen 真分词、V3 CLIP 启发式、黄/红双档阈值)
@@ -127,7 +129,11 @@ Novelai-harness/
 │   └── ui/                                     # 表现层 (Flutter Widgets & MVVM)
 │       ├── core/
 │       │   ├── theme/
-│       │   │   └── app_theme.dart              # 暗黑工作台主题体系、Notion 风格调色板与全局阴影
+│       │   │   ├── app_theme.dart              # 工作台主题体系与 Notion 风格调色板 (支持 MD3 种子注入强调色)
+│       │   │   ├── app_colors_extension.dart    # 语义色彩设计令牌 ThemeExtension (可被 MD3 令牌覆盖强调色族)
+│       │   │   ├── app_accent_controller.dart   # 主题强调色全局单一事实源 (默认蓝/跟随图片/手动种子 + MD3 方案)
+│       │   │   ├── md3_accent.dart              # MD3 DynamicScheme 取色令牌 (8 种方案，Dislike 修正+tonal palette 映射)
+│       │   │   └── theme_mode_controller.dart   # 主题模式控制器 (system/light/dark → MaterialApp.themeMode)
 │       │   └── widgets/
 │       │       ├── resizable_split_view.dart   # 可自由拖动分割线的三栏自适应布局容器
 │       │       ├── custom_title_bar.dart       # 顶部沉浸式自定义标题栏 (窗口拖拽与最小化/最大化/关闭)
@@ -198,6 +204,7 @@ Novelai-harness/
 │                   ├── watermark_position_overlay.dart # 水印 2D 交互画板 (拖拽选位/缩放手柄/滚轮微调)
 │                   ├── canvas_position_floating_controls.dart # 角色与水印悬浮控制栏 + 滚轮循环切换
 │                   ├── metadata_reader_dialog.dart # Notion 极简元数据解析弹窗 (参数网格/角色卡/Raw/一键回填)
+│                   ├── palette_inspector_dialog.dart # 图片调色盘弹窗 (主色网格/MD3 方案亮暗预览/一键设主题强调色)
 │                   ├── image_canvas_card.dart  # 中间面板：大图交互画板主壳 (支持拖入带元数据图片自动识别)
 │                   ├── image_stream_view.dart  # 流式生图渲染视图与当前展示大图
 │                   ├── image_canvas_actions.dart # 画板右上浮动工具条 (复制脱敏/复制原图/新版超分/打开目录)

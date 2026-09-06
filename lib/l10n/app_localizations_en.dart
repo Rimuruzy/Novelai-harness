@@ -97,6 +97,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeModeDark => 'Dark';
 
   @override
+  String get settingsAccentSource => 'Accent Color';
+
+  @override
+  String get settingsAccentSourceSubtitle =>
+      'Default Notion blue, or MD3 dynamic color from the current image';
+
+  @override
+  String get accentModeDefault => 'Default Blue';
+
+  @override
+  String get accentModeAdaptive => 'Follow Image';
+
+  @override
+  String get accentModeManual => 'Manual';
+
+  @override
+  String get settingsAccentVariant => 'Color Scheme';
+
+  @override
+  String get settingsAccentVariantSubtitle =>
+      'MD3 DynamicScheme style, applies when accent follows image or manual seed';
+
+  @override
+  String get accentVariantTonalSpot => 'Tonal Spot (Default)';
+
+  @override
+  String get accentVariantVibrant => 'Vibrant';
+
+  @override
+  String get accentVariantExpressive => 'Expressive';
+
+  @override
+  String get accentVariantContent => 'Content';
+
+  @override
+  String get accentVariantNeutral => 'Neutral';
+
+  @override
+  String get accentVariantMonochrome => 'Monochrome';
+
+  @override
+  String get accentVariantRainbow => 'Rainbow';
+
+  @override
+  String get accentVariantFruitSalad => 'Fruit Salad';
+
+  @override
   String get settingsLanguage => 'Language';
 
   @override
@@ -1510,6 +1557,50 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get canvasActionViewLightbox => 'View Full Size';
+
+  @override
+  String get canvasActionViewPalette => 'View Palette';
+
+  @override
+  String get paletteDialogTitle => 'Color Palette';
+
+  @override
+  String get paletteExtractFailed => 'Failed to extract colors from this image';
+
+  @override
+  String get paletteHintAdaptive =>
+      'Follow Image is on: the theme accent updates automatically when the image changes';
+
+  @override
+  String get paletteHintManual =>
+      'Click a swatch to set it as the theme accent; right-click to copy the hex value';
+
+  @override
+  String get paletteAppliedAccent => 'Set as theme accent color';
+
+  @override
+  String get paletteCopiedHex => 'Hex value copied';
+
+  @override
+  String get paletteM3PreviewTitle => 'MD3 Scheme Preview';
+
+  @override
+  String get paletteM3PreviewLight => 'Light';
+
+  @override
+  String get paletteM3PreviewDark => 'Dark';
+
+  @override
+  String get paletteM3TokenPrimary => 'Primary';
+
+  @override
+  String get paletteM3TokenLight => 'Light';
+
+  @override
+  String get paletteM3TokenDark => 'Dark';
+
+  @override
+  String get paletteM3TokenTint => 'Tint';
 
   @override
   String get canvasActionDeleteFromHistory => 'Delete from History';

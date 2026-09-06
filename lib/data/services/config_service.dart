@@ -50,6 +50,79 @@ String localePreferenceStorage(AppLocalePreference locale) => switch (locale) {
   AppLocalePreference.en => 'en',
 };
 
+/// 主题强调色来源 (默认 Notion 蓝 / 跟随当前图片自适应 / 手动指定种子色)
+///
+/// 纯 Dart 枚举；种子色推导与主题注入见 ui/core/theme/md3_accent.dart。
+enum AppAccentMode { defaultBlue, adaptive, manual }
+
+/// 存储字符串 → 枚举 (未知/缺失值回退默认蓝，保持旧行为)
+AppAccentMode parseAccentMode(String? raw) => switch (raw) {
+  'adaptive' => AppAccentMode.adaptive,
+  'manual' => AppAccentMode.manual,
+  _ => AppAccentMode.defaultBlue,
+};
+
+/// 枚举 → 存储字符串
+String accentModeStorage(AppAccentMode mode) => switch (mode) {
+  AppAccentMode.defaultBlue => 'default',
+  AppAccentMode.adaptive => 'adaptive',
+  AppAccentMode.manual => 'manual',
+};
+
+/// MD3 动态取色方案 (与 material_color_utilities Variant 一一对应)
+///
+/// tonalSpot 为 Android 12/13 Material You 默认方案。
+enum AppAccentVariant {
+  tonalSpot,
+  vibrant,
+  expressive,
+  content,
+  neutral,
+  monochrome,
+  rainbow,
+  fruitSalad,
+}
+
+/// 存储字符串 → 枚举 (未知/缺失值回退 tonalSpot)
+AppAccentVariant parseAccentVariant(String? raw) => switch (raw) {
+  'vibrant' => AppAccentVariant.vibrant,
+  'expressive' => AppAccentVariant.expressive,
+  'content' => AppAccentVariant.content,
+  'neutral' => AppAccentVariant.neutral,
+  'monochrome' => AppAccentVariant.monochrome,
+  'rainbow' => AppAccentVariant.rainbow,
+  'fruit_salad' => AppAccentVariant.fruitSalad,
+  _ => AppAccentVariant.tonalSpot,
+};
+
+/// 枚举 → 存储字符串
+String accentVariantStorage(AppAccentVariant variant) => switch (variant) {
+  AppAccentVariant.tonalSpot => 'tonal_spot',
+  AppAccentVariant.vibrant => 'vibrant',
+  AppAccentVariant.expressive => 'expressive',
+  AppAccentVariant.content => 'content',
+  AppAccentVariant.neutral => 'neutral',
+  AppAccentVariant.monochrome => 'monochrome',
+  AppAccentVariant.rainbow => 'rainbow',
+  AppAccentVariant.fruitSalad => 'fruit_salad',
+};
+
+/// 种子色存储文本 (#RRGGBB) → ARGB 整型；非法/空文本返回 null
+int? parseSeedColorText(String? raw) {
+  if (raw == null) return null;
+  final hex = raw.startsWith('#') ? raw.substring(1) : raw;
+  if (hex.length != 6) return null;
+  final rgb = int.tryParse(hex, radix: 16);
+  if (rgb == null) return null;
+  return 0xFF000000 | rgb;
+}
+
+/// ARGB 整型 → 种子色存储文本 (#RRGGBB)；null 返回 null
+String? seedColorText(int? argb) {
+  if (argb == null) return null;
+  return '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+}
+
 /// 全局配置数据模型
 class AppConfig {
   // NovelAI 设置
@@ -67,6 +140,15 @@ class AppConfig {
 
   /// 主题模式偏好 (跟随系统/亮色/深色)，由 AppThemeModeController 映射到 MaterialApp
   final AppThemeModePreference themeMode;
+
+  /// 主题强调色来源 (默认蓝/跟随图片/手动种子)，由 AppAccentController 映射到主题
+  final AppAccentMode accentMode;
+
+  /// MD3 取色方案 (accentMode 非 defaultBlue 时生效)
+  final AppAccentVariant accentVariant;
+
+  /// 手动模式下的种子色 (存储为 #RRGGBB 文本，null = 未指定)
+  final String? accentSeedColor;
 
   /// 语言偏好 (跟随系统/中文/English)，由 AppLocaleController 映射到 MaterialApp
   final AppLocalePreference localePreference;
@@ -172,6 +254,9 @@ class AppConfig {
     this.defaultCfgRescale = 0.0,
     this.opusFreeMode = true,
     this.themeMode = AppThemeModePreference.light,
+    this.accentMode = AppAccentMode.defaultBlue,
+    this.accentVariant = AppAccentVariant.tonalSpot,
+    this.accentSeedColor,
     this.localePreference = AppLocalePreference.system,
     this.uiZoom = 1.0,
     this.enableStreamPreview = true,
@@ -214,6 +299,9 @@ class AppConfig {
     double? defaultCfgRescale,
     bool? opusFreeMode,
     AppThemeModePreference? themeMode,
+    AppAccentMode? accentMode,
+    AppAccentVariant? accentVariant,
+    String? accentSeedColor,
     AppLocalePreference? localePreference,
     double? uiZoom,
     bool? enableStreamPreview,
@@ -258,6 +346,9 @@ class AppConfig {
       defaultCfgRescale: defaultCfgRescale ?? this.defaultCfgRescale,
       opusFreeMode: opusFreeMode ?? this.opusFreeMode,
       themeMode: themeMode ?? this.themeMode,
+      accentMode: accentMode ?? this.accentMode,
+      accentVariant: accentVariant ?? this.accentVariant,
+      accentSeedColor: accentSeedColor ?? this.accentSeedColor,
       localePreference: localePreference ?? this.localePreference,
       uiZoom: uiZoom ?? this.uiZoom,
       enableStreamPreview: enableStreamPreview ?? this.enableStreamPreview,
@@ -307,6 +398,9 @@ class ConfigService {
   static const String _keyCfgRescale = 'novelai_cfg_rescale';
   static const String _keyOpusFreeMode = 'novelai_opus_free_mode';
   static const String _keyThemeMode = 'novelai_theme_mode';
+  static const String _keyAccentMode = 'novelai_accent_mode';
+  static const String _keyAccentVariant = 'novelai_accent_variant';
+  static const String _keyAccentSeedColor = 'novelai_accent_seed_color';
   static const String _keyLocalePreference = 'novelai_locale_preference';
   static const String _keyUiZoom = 'novelai_ui_zoom';
   static const String _keyEnableStreamPreview = 'novelai_enable_stream_preview';
@@ -407,6 +501,11 @@ class ConfigService {
     double rescale = prefs.getDouble(_keyCfgRescale) ?? 0.0;
     bool opusFree = prefs.getBool(_keyOpusFreeMode) ?? true;
     final themeMode = parseThemeModePreference(prefs.getString(_keyThemeMode));
+    final accentMode = parseAccentMode(prefs.getString(_keyAccentMode));
+    final accentVariant = parseAccentVariant(
+      prefs.getString(_keyAccentVariant),
+    );
+    final accentSeedColor = prefs.getString(_keyAccentSeedColor);
     final localePref = parseLocalePreference(
       prefs.getString(_keyLocalePreference),
     );
@@ -627,6 +726,9 @@ class ConfigService {
       defaultCfgRescale: rescale,
       opusFreeMode: opusFree,
       themeMode: themeMode,
+      accentMode: accentMode,
+      accentVariant: accentVariant,
+      accentSeedColor: accentSeedColor,
       localePreference: localePref,
       uiZoom: uiZoom,
       enableStreamPreview: enableStream,
@@ -676,6 +778,19 @@ class ConfigService {
       _keyThemeMode,
       themeModePreferenceStorage(config.themeMode),
     );
+    await prefs.setString(
+      _keyAccentMode,
+      accentModeStorage(config.accentMode),
+    );
+    await prefs.setString(
+      _keyAccentVariant,
+      accentVariantStorage(config.accentVariant),
+    );
+    if (config.accentSeedColor == null) {
+      await prefs.remove(_keyAccentSeedColor);
+    } else {
+      await prefs.setString(_keyAccentSeedColor, config.accentSeedColor!);
+    }
     await prefs.setString(
       _keyLocalePreference,
       localePreferenceStorage(config.localePreference),

@@ -81,6 +81,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       saveDirectory: _generalDraft.saveDirController.text.trim(),
       opusFreeMode: _generalDraft.opusFreeMode,
       themeMode: _generalDraft.themeMode,
+      accentMode: _generalDraft.accentMode,
+      accentVariant: _generalDraft.accentVariant,
       localePreference: _generalDraft.localePreference,
       uiZoom: _generalDraft.uiZoom,
       enableStreamPreview: _generalDraft.enableStreamPreview,

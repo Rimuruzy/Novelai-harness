@@ -15,6 +15,7 @@ mixin _StudioGenerationMixin on _StudioCore {
   }) {
     if (wasViewingLatest) {
       _selectedImage = image;
+      _scheduleAdaptiveAccent(image);
       _hasUnseenLatest = false;
     } else {
       _hasUnseenLatest = true;

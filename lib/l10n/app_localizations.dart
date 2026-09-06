@@ -272,6 +272,96 @@ abstract class AppLocalizations {
   /// **'深色'**
   String get themeModeDark;
 
+  /// No description provided for @settingsAccentSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'强调色'**
+  String get settingsAccentSource;
+
+  /// No description provided for @settingsAccentSourceSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认 Notion 蓝，或跟随当前图片主色 MD3 动态取色'**
+  String get settingsAccentSourceSubtitle;
+
+  /// No description provided for @accentModeDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认蓝色'**
+  String get accentModeDefault;
+
+  /// No description provided for @accentModeAdaptive.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随图片'**
+  String get accentModeAdaptive;
+
+  /// No description provided for @accentModeManual.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动选择'**
+  String get accentModeManual;
+
+  /// No description provided for @settingsAccentVariant.
+  ///
+  /// In zh, this message translates to:
+  /// **'取色方案'**
+  String get settingsAccentVariant;
+
+  /// No description provided for @settingsAccentVariantSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'MD3 DynamicScheme 推导风格，强调色跟随图片或手动指定时生效'**
+  String get settingsAccentVariantSubtitle;
+
+  /// No description provided for @accentVariantTonalSpot.
+  ///
+  /// In zh, this message translates to:
+  /// **'色斑 (默认)'**
+  String get accentVariantTonalSpot;
+
+  /// No description provided for @accentVariantVibrant.
+  ///
+  /// In zh, this message translates to:
+  /// **'鲜艳'**
+  String get accentVariantVibrant;
+
+  /// No description provided for @accentVariantExpressive.
+  ///
+  /// In zh, this message translates to:
+  /// **'表现力'**
+  String get accentVariantExpressive;
+
+  /// No description provided for @accentVariantContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'忠实内容'**
+  String get accentVariantContent;
+
+  /// No description provided for @accentVariantNeutral.
+  ///
+  /// In zh, this message translates to:
+  /// **'中性'**
+  String get accentVariantNeutral;
+
+  /// No description provided for @accentVariantMonochrome.
+  ///
+  /// In zh, this message translates to:
+  /// **'单色'**
+  String get accentVariantMonochrome;
+
+  /// No description provided for @accentVariantRainbow.
+  ///
+  /// In zh, this message translates to:
+  /// **'彩虹'**
+  String get accentVariantRainbow;
+
+  /// No description provided for @accentVariantFruitSalad.
+  ///
+  /// In zh, this message translates to:
+  /// **'水果沙拉'**
+  String get accentVariantFruitSalad;
+
   /// No description provided for @settingsLanguage.
   ///
   /// In zh, this message translates to:
@@ -2785,6 +2875,90 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'查看大图'**
   String get canvasActionViewLightbox;
+
+  /// No description provided for @canvasActionViewPalette.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看调色盘'**
+  String get canvasActionViewPalette;
+
+  /// No description provided for @paletteDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'调色盘'**
+  String get paletteDialogTitle;
+
+  /// No description provided for @paletteExtractFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'未能从这张图片提取主色'**
+  String get paletteExtractFailed;
+
+  /// No description provided for @paletteHintAdaptive.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启「跟随图片」：切换图片时主题强调色将自动更新'**
+  String get paletteHintAdaptive;
+
+  /// No description provided for @paletteHintManual.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击色块设为主题强调色，右键复制色值'**
+  String get paletteHintManual;
+
+  /// No description provided for @paletteAppliedAccent.
+  ///
+  /// In zh, this message translates to:
+  /// **'已设为主题强调色'**
+  String get paletteAppliedAccent;
+
+  /// No description provided for @paletteCopiedHex.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制色值'**
+  String get paletteCopiedHex;
+
+  /// No description provided for @paletteM3PreviewTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'MD3 取色方案预览'**
+  String get paletteM3PreviewTitle;
+
+  /// No description provided for @paletteM3PreviewLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'亮色'**
+  String get paletteM3PreviewLight;
+
+  /// No description provided for @paletteM3PreviewDark.
+  ///
+  /// In zh, this message translates to:
+  /// **'暗色'**
+  String get paletteM3PreviewDark;
+
+  /// No description provided for @paletteM3TokenPrimary.
+  ///
+  /// In zh, this message translates to:
+  /// **'主色'**
+  String get paletteM3TokenPrimary;
+
+  /// No description provided for @paletteM3TokenLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'亮档'**
+  String get paletteM3TokenLight;
+
+  /// No description provided for @paletteM3TokenDark.
+  ///
+  /// In zh, this message translates to:
+  /// **'深档'**
+  String get paletteM3TokenDark;
+
+  /// No description provided for @paletteM3TokenTint.
+  ///
+  /// In zh, this message translates to:
+  /// **'底色'**
+  String get paletteM3TokenTint;
 
   /// No description provided for @canvasActionDeleteFromHistory.
   ///

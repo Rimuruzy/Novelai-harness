@@ -19,6 +19,8 @@ class GeneralSettingsDraft {
       saveDirController = TextEditingController(text: config.saveDirectory),
       opusFreeMode = config.opusFreeMode,
       themeMode = config.themeMode,
+      accentMode = config.accentMode,
+      accentVariant = config.accentVariant,
       localePreference = config.localePreference,
       uiZoom = config.uiZoom,
       enableStreamPreview = config.enableStreamPreview,
@@ -36,6 +38,12 @@ class GeneralSettingsDraft {
 
   /// 主题模式偏好 (跟随系统/亮色/深色)，保存时由 SettingsDialog 聚合进 AppConfig
   AppThemeModePreference themeMode;
+
+  /// 主题强调色来源 (默认蓝/跟随图片/手动种子)，保存时聚合进 AppConfig
+  AppAccentMode accentMode;
+
+  /// MD3 取色方案 (强调色非默认时生效)，保存时聚合进 AppConfig
+  AppAccentVariant accentVariant;
 
   /// 语言偏好 (跟随系统/中文/English)，保存时由 SettingsDialog 聚合进 AppConfig
   AppLocalePreference localePreference;
@@ -161,6 +169,42 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               },
               width: 130,
               onChanged: (mode) => setState(() => _draft.themeMode = mode),
+            ),
+          ),
+          AppSettingTile(
+            title: l10n.settingsAccentSource,
+            subtitle: l10n.settingsAccentSourceSubtitle,
+            control: AppDropdown.simple(
+              value: _draft.accentMode,
+              items: AppAccentMode.values,
+              labelOf: (mode) => switch (mode) {
+                AppAccentMode.defaultBlue => l10n.accentModeDefault,
+                AppAccentMode.adaptive => l10n.accentModeAdaptive,
+                AppAccentMode.manual => l10n.accentModeManual,
+              },
+              width: 130,
+              onChanged: (mode) => setState(() => _draft.accentMode = mode),
+            ),
+          ),
+          AppSettingTile(
+            title: l10n.settingsAccentVariant,
+            subtitle: l10n.settingsAccentVariantSubtitle,
+            control: AppDropdown.simple(
+              value: _draft.accentVariant,
+              items: AppAccentVariant.values,
+              labelOf: (variant) => switch (variant) {
+                AppAccentVariant.tonalSpot => l10n.accentVariantTonalSpot,
+                AppAccentVariant.vibrant => l10n.accentVariantVibrant,
+                AppAccentVariant.expressive => l10n.accentVariantExpressive,
+                AppAccentVariant.content => l10n.accentVariantContent,
+                AppAccentVariant.neutral => l10n.accentVariantNeutral,
+                AppAccentVariant.monochrome => l10n.accentVariantMonochrome,
+                AppAccentVariant.rainbow => l10n.accentVariantRainbow,
+                AppAccentVariant.fruitSalad => l10n.accentVariantFruitSalad,
+              },
+              width: 170,
+              onChanged: (variant) =>
+                  setState(() => _draft.accentVariant = variant),
             ),
           ),
           AppSettingTile(

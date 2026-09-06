@@ -60,6 +60,8 @@ dependencies:
   dart_sentencepiece_tokenizer: ^1.3.0
   # Qwen 分词前要求 NFC 归一化，Dart 无内置实现
   unorm_dart: ^0.3.2
+  # MD3 动态取色 (QuantizerCelebi/Score/DynamicScheme，与 Android 取壁纸色同源)
+  material_color_utilities: ^0.13.0
 
 dev_dependencies:
   flutter_test:

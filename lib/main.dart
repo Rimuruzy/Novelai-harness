@@ -7,6 +7,7 @@ import 'data/services/tag_dictionary_service.dart';
 import 'data/services/window_state_service.dart';
 import 'l10n/app_localizations.dart';
 import 'ui/core/locale/app_locale_controller.dart';
+import 'ui/core/theme/app_accent_controller.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/core/theme/theme_mode_controller.dart';
 import 'ui/core/theme/ui_zoom_controller.dart';
@@ -67,6 +68,7 @@ void main() async {
   // 这里多解析一次换取首帧即正确)
   final bootConfig = await ConfigService().loadConfig();
   AppThemeModeController.instance.syncFromConfig(bootConfig);
+  AppAccentController.instance.syncFromConfig(bootConfig);
   AppLocaleController.instance.syncFromConfig(bootConfig);
   AppUiZoomController.instance.syncFromConfig(bootConfig);
 
@@ -81,17 +83,22 @@ class NovelAiHarnessApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: AppThemeModeController.instance.mode,
       builder: (context, themeMode, _) {
-        // 语言同理：根级局部监听驱动 MaterialApp.locale，切换只重建 Localizations 层。
-        // null = 跟随系统，交由平台 locale 解析。
-        return ValueListenableBuilder<Locale?>(
-          valueListenable: AppLocaleController.instance.locale,
-          builder: (context, locale, _) {
-            return MaterialApp(
-              title: 'NovelAI Harness',
-              navigatorKey: navigatorKey,
-              locale: locale,
-              theme: AppTheme.lightTheme,
-              darkTheme: AppTheme.darkTheme,
+        // 强调色同理：根级局部监听驱动 MaterialApp.theme/darkTheme，
+        // MD3 自适应取色切换只重建主题层 (MaterialApp 内建 200ms 平滑切色)
+        return ValueListenableBuilder<AccentThemeState>(
+          valueListenable: AppAccentController.instance.state,
+          builder: (context, accent, _) {
+            // 语言同理：根级局部监听驱动 MaterialApp.locale，切换只重建 Localizations 层。
+            // null = 跟随系统，交由平台 locale 解析。
+            return ValueListenableBuilder<Locale?>(
+              valueListenable: AppLocaleController.instance.locale,
+              builder: (context, locale, _) {
+                return MaterialApp(
+                  title: 'NovelAI Harness',
+                  navigatorKey: navigatorKey,
+                  locale: locale,
+                  theme: AppTheme.lightThemeFor(accent),
+                  darkTheme: AppTheme.darkThemeFor(accent),
               // 阶段 3 主题模式实装：跟随设置页「主题模式」选择器与持久化配置；
               // MaterialApp 内建 200ms 主题动画平滑过渡，切换只重建主题层不触发全局重绘。
               themeMode: themeMode,
@@ -123,6 +130,8 @@ class NovelAiHarnessApp extends StatelessWidget {
                 return content;
               },
               home: const StudioView(),
+                );
+              },
             );
           },
         );

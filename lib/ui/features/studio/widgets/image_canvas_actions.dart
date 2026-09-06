@@ -11,6 +11,7 @@ import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../../core/widgets/context_menu.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_lightbox.dart';
+import 'palette_inspector_dialog.dart';
 
 /// 画板图片的安全纵横比 (宽高非法时回退 1:1)
 double imageAspectRatioOf(NaiGenerationParams params) =>
@@ -167,6 +168,15 @@ void showImageContextMenu(
         },
       ),
       const ContextMenuDivider(),
+      ContextMenuItem(
+        icon: Icons.palette_outlined,
+        label: l10n.canvasActionViewPalette,
+        onTap: () => PaletteInspectorDialog.show(
+          context,
+          viewModel: viewModel,
+          image: image,
+        ),
+      ),
       ContextMenuItem(
         icon: Icons.fullscreen_rounded,
         label: l10n.canvasActionViewLightbox,

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show Locale, Offset, Rect;
+import 'dart:ui' show Color, Locale, Offset, Rect;
 import 'package:flutter/foundation.dart';
 import '../../../../core/harness/agent_harness.dart';
 import '../../../../core/harness/presets/agent_preset.dart';
@@ -9,6 +9,7 @@ import '../../../../core/harness/tools/agent_tool.dart';
 // AiEditImageTool 在 part 分部 studio_vm_harness.dart 中注册使用
 import '../../../../core/harness/tools/ai_edit_image_tool.dart';
 import '../../../core/locale/app_locale_controller.dart';
+import '../../../core/theme/app_accent_controller.dart';
 import '../../../core/theme/theme_mode_controller.dart';
 import '../../../core/theme/ui_zoom_controller.dart';
 import '../../../../core/harness/tools/annotation_tools.dart';
@@ -28,6 +29,7 @@ import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../../data/services/palette_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
 import '../../../../data/services/watermark_service.dart';
@@ -120,6 +122,8 @@ mixin _StudioCore on ChangeNotifier {
   bool _isThinkingExpanded = false;
   NaiGeneratedImage? _selectedImage;
   bool _hasUnseenLatest = false;
+  /// 自适应取色：最近一次已提取主色的图片 id (去重，避免重复 Isolate 提取)
+  String? _lastAccentImageId;
   String? _statusMessage;
   String? _errorMessage;
 
@@ -409,6 +413,10 @@ mixin _StudioCore on ChangeNotifier {
     required bool wasViewingLatest,
   });
 
+  /// 自适应取色：后台提取指定图片主色并注入主题强调色
+  /// (仅 accentMode == adaptive 时生效，选图/生图/删图后调用)
+  void _scheduleAdaptiveAccent(NaiGeneratedImage image);
+
   /// 手动保存当前选中的未保存 (缓存) 图片到本地存储目录
   Future<bool> saveCurrentImageToDisk();
 
@@ -655,6 +663,7 @@ class StudioViewModel extends ChangeNotifier
       if (_repository.history.isNotEmpty && _selectedImage == null) {
         _selectedImage = _repository.history.first;
         ensureImageLoaded(_selectedImage!);
+        _scheduleAdaptiveAccent(_selectedImage!);
       }
 
       // 恢复大画布布局 (节点位置尺寸/便利贴/连线/视口)
@@ -702,6 +711,17 @@ class StudioViewModel extends ChangeNotifier
     // 主题模式即时生效：MaterialApp 根节点监听全局控制器局部刷新，
     // 200ms 平滑切色，不走 notifyListeners 全局重绘
     AppThemeModeController.instance.syncFromConfig(newConfig);
+    // 强调色同步：MD3 自适应取色即时生效 (同样只重建主题层)
+    AppAccentController.instance.syncFromConfig(newConfig);
+    // 模式或方案变化时按当前展示图立即重取/重应用种子
+    if (oldConfig.accentMode != newConfig.accentMode ||
+        oldConfig.accentVariant != newConfig.accentVariant) {
+      _lastAccentImageId = null;
+      final current = _selectedImage;
+      if (current != null) {
+        _scheduleAdaptiveAccent(current);
+      }
+    }
     // 语言同理：根级 ValueListenableBuilder 局部接管，不全局重绘
     AppLocaleController.instance.syncFromConfig(newConfig);
     // VM 侧消息文案同步跟随语言设置 (system 跟随平台首选语言)
@@ -741,6 +761,7 @@ class StudioViewModel extends ChangeNotifier
           if (_repository.history.isNotEmpty && _selectedImage == null) {
             _selectedImage = _repository.history.first;
             ensureImageLoaded(_selectedImage!);
+            _scheduleAdaptiveAccent(_selectedImage!);
           }
         } else {
           await _repository.savePersistedHistory(
@@ -830,6 +851,7 @@ class StudioViewModel extends ChangeNotifier
   void selectImage(NaiGeneratedImage image) {
     _selectedImage = image;
     ensureImageLoaded(image);
+    _scheduleAdaptiveAccent(image);
     if (gallery.isNotEmpty && image.id == gallery.first.id) {
       _hasUnseenLatest = false;
     }
@@ -843,9 +865,49 @@ class StudioViewModel extends ChangeNotifier
     if (gallery.isNotEmpty) {
       _selectedImage = gallery.first;
       ensureImageLoaded(gallery.first);
+      _scheduleAdaptiveAccent(gallery.first);
       _hasUnseenLatest = false;
       notifyListeners();
     }
+  }
+
+  /// 自适应取色：后台提取指定图片主色并注入主题强调色
+  ///
+  /// 仅 accentMode == adaptive 时生效；按图片 id 去重 (含 LRU 缓存)，
+  /// fire-and-forget 不阻塞选图/生图主流程；结果回来时校验该图
+  /// 仍是当前展示图，避免快速切换图片时旧结果覆盖新种子。
+  @override
+  void _scheduleAdaptiveAccent(NaiGeneratedImage image) {
+    if (_config.accentMode != AppAccentMode.adaptive) return;
+    if (_lastAccentImageId == image.id) return;
+    _lastAccentImageId = image.id;
+    unawaited(() async {
+      try {
+        final bytes = await ensureImageLoaded(image) ?? image.bytes;
+        if (bytes.isEmpty) return;
+        final palette = await PaletteService.instance.extract(
+          bytes,
+          cacheKey: image.id,
+        );
+        if (palette == null) return;
+        if (_selectedImage?.id != image.id) return;
+        AppAccentController.instance.applyAdaptiveSeed(Color(palette.seed));
+      } catch (_) {
+        // 取色失败静默降级：保持当前主题不变
+      }
+    }());
+  }
+
+  /// 将指定色设为手动主题强调色种子 (调色盘面板调用，立即生效并落盘)
+  void setManualAccentSeed(Color seed) {
+    unawaited(
+      updateConfig(
+        _config.copyWith(
+          accentMode: AppAccentMode.manual,
+          accentSeedColor: seedColorText(seed.toARGB32()),
+        ),
+      ),
+    );
   }
 
   /// 关闭新图片提示气泡
@@ -878,6 +940,7 @@ class StudioViewModel extends ChangeNotifier
             : gallery.length - 1;
         _selectedImage = gallery[nextIndex];
         ensureImageLoaded(_selectedImage!);
+        _scheduleAdaptiveAccent(_selectedImage!);
       } else {
         _selectedImage = null;
       }

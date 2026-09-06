@@ -96,6 +96,52 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeModeDark => '深色';
 
   @override
+  String get settingsAccentSource => '强调色';
+
+  @override
+  String get settingsAccentSourceSubtitle => '默认 Notion 蓝，或跟随当前图片主色 MD3 动态取色';
+
+  @override
+  String get accentModeDefault => '默认蓝色';
+
+  @override
+  String get accentModeAdaptive => '跟随图片';
+
+  @override
+  String get accentModeManual => '手动选择';
+
+  @override
+  String get settingsAccentVariant => '取色方案';
+
+  @override
+  String get settingsAccentVariantSubtitle =>
+      'MD3 DynamicScheme 推导风格，强调色跟随图片或手动指定时生效';
+
+  @override
+  String get accentVariantTonalSpot => '色斑 (默认)';
+
+  @override
+  String get accentVariantVibrant => '鲜艳';
+
+  @override
+  String get accentVariantExpressive => '表现力';
+
+  @override
+  String get accentVariantContent => '忠实内容';
+
+  @override
+  String get accentVariantNeutral => '中性';
+
+  @override
+  String get accentVariantMonochrome => '单色';
+
+  @override
+  String get accentVariantRainbow => '彩虹';
+
+  @override
+  String get accentVariantFruitSalad => '水果沙拉';
+
+  @override
   String get settingsLanguage => '语言';
 
   @override
@@ -1442,6 +1488,48 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get canvasActionViewLightbox => '查看大图';
+
+  @override
+  String get canvasActionViewPalette => '查看调色盘';
+
+  @override
+  String get paletteDialogTitle => '调色盘';
+
+  @override
+  String get paletteExtractFailed => '未能从这张图片提取主色';
+
+  @override
+  String get paletteHintAdaptive => '已开启「跟随图片」：切换图片时主题强调色将自动更新';
+
+  @override
+  String get paletteHintManual => '点击色块设为主题强调色，右键复制色值';
+
+  @override
+  String get paletteAppliedAccent => '已设为主题强调色';
+
+  @override
+  String get paletteCopiedHex => '已复制色值';
+
+  @override
+  String get paletteM3PreviewTitle => 'MD3 取色方案预览';
+
+  @override
+  String get paletteM3PreviewLight => '亮色';
+
+  @override
+  String get paletteM3PreviewDark => '暗色';
+
+  @override
+  String get paletteM3TokenPrimary => '主色';
+
+  @override
+  String get paletteM3TokenLight => '亮档';
+
+  @override
+  String get paletteM3TokenDark => '深档';
+
+  @override
+  String get paletteM3TokenTint => '底色';
 
   @override
   String get canvasActionDeleteFromHistory => '从历史记录删除';

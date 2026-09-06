@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../../data/services/config_service.dart';
+import 'app_accent_controller.dart';
 import 'app_colors_extension.dart';
+import 'md3_accent.dart';
 
 /// 应用视觉主题与调色板 (Notion 风格暖纸本极简工作台)
+///
+/// 主题在默认状态下使用 Notion 原生色板；当用户启用 MD3 自适应取色
+/// (图片主色/手动种子色) 时，仅强调色族 token (primary/primaryLight/
+/// primaryDark/primaryTint/borderFocus/accent) 替换为 DynamicScheme 推导值，
+/// 中性色 (背景层级/文字/边框) 保持 Notion 观感，避免整站洗色。
 class AppTheme {
   // --- 基础色板 Tokens (Notion Style) ---
   static const Color paperWarmth = Color(0xFFF6F5F4); // Page canvas / 暖纸底色
@@ -59,219 +67,181 @@ class AppTheme {
 
   static const String fontFamily = 'MiSans';
 
-  static ThemeData get lightTheme {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      fontFamily: fontFamily,
-      scaffoldBackgroundColor: background,
-      extensions: const [AppColorsExtension.light],
-      colorScheme: ColorScheme.light(
-        primary: primary,
-        secondary: primaryLight,
-        surface: surface,
-        surfaceContainerLowest: AppColorsExtension.light.canvasBackground,
-        surfaceContainerLow: AppColorsExtension.light.mutedBackground,
-        surfaceContainer: AppColorsExtension.light.mutedBackground,
-        surfaceContainerHigh: AppColorsExtension.light.elevatedBackground,
-        surfaceContainerHighest: AppColorsExtension.light.mutedBackground,
-        error: error,
-        onPrimary: Colors.white,
-        onSurface: textPrimary,
-        onSurfaceVariant: AppColorsExtension.light.textSecondary,
-      ),
-      hoverColor: Colors.transparent,
-      cardTheme: CardThemeData(
-        color: surface,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(color: border, width: 1),
-          borderRadius: BorderRadius.circular(radiusCard),
-        ),
-      ),
-      dividerTheme: const DividerThemeData(
-        color: border,
-        thickness: 1,
-        space: 1,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: pureWhite,
-        hoverColor: pureWhite,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusButton),
-          borderSide: const BorderSide(color: border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusButton),
-          borderSide: const BorderSide(color: border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusButton),
-          borderSide: const BorderSide(color: primary, width: 1.5),
-        ),
-        hintStyle: const TextStyle(
-          fontFamily: fontFamily,
-          color: textMuted,
-          fontSize: 13,
-        ),
-        labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 12),
-      ),
-      sliderTheme: SliderThemeData(
-        activeTrackColor: primary,
-        inactiveTrackColor: AppColorsExtension.light.mutedBackground,
-        thumbColor: primary,
-        overlayColor: primary.withValues(alpha: 0.12),
-        trackHeight: 3,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-      ),
-      textTheme: const TextTheme(
-        headlineMedium: TextStyle(
-          fontFamily: fontFamily,
-          color: textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.2,
-        ),
-        titleMedium: TextStyle(
-          fontFamily: fontFamily,
-          color: textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
-        bodyMedium: TextStyle(
-          fontFamily: fontFamily,
-          color: textPrimary,
-          fontSize: 13,
-          height: 1.45,
-        ),
-        bodySmall: TextStyle(
-          fontFamily: fontFamily,
-          color: textSecondary,
-          fontSize: 12,
-        ),
-      ),
-      scrollbarTheme: ScrollbarThemeData(
-        thumbColor: WidgetStateProperty.all(borderHover),
-        radius: const Radius.circular(radiusSmall),
-        thickness: WidgetStateProperty.all(6),
-      ),
-    );
-  }
+  /// 默认亮色主题 (Notion 暖纸本)
+  static ThemeData get lightTheme => buildTheme(Brightness.light);
 
-  /// 真实暗黑主题 (Notion Minimal Dark)
-  static ThemeData get darkTheme {
-    const darkColors = AppColorsExtension.dark;
+  /// 默认暗色主题 (Notion Minimal Dark)
+  static ThemeData get darkTheme => buildTheme(Brightness.dark);
+
+  /// 按当前强调色状态构建亮色主题 (main.dart 根节点监听调用)；
+  /// [accent] 为 null 或种子色为空时回落 Notion 原生色板。
+  static ThemeData lightThemeFor(AccentThemeState? accent) =>
+      _buildAccent(Brightness.light, accent);
+
+  /// 按当前强调色状态构建暗色主题
+  static ThemeData darkThemeFor(AccentThemeState? accent) =>
+      _buildAccent(Brightness.dark, accent);
+
+  static ThemeData _buildAccent(Brightness brightness, AccentThemeState? accent) =>
+      buildTheme(
+        brightness,
+        seed: accent?.seed,
+        variant: accent?.variant ?? AppAccentVariant.tonalSpot,
+      );
+
+  /// 通用主题构建：[seed] 非空时经 MD3 DynamicScheme 推导强调色族注入
+  static ThemeData buildTheme(
+    Brightness brightness, {
+    Color? seed,
+    AppAccentVariant variant = AppAccentVariant.tonalSpot,
+  }) {
+    final isDark = brightness == Brightness.dark;
+    final baseColors = isDark ? AppColorsExtension.dark : AppColorsExtension.light;
+    final M3AccentTokens? tokens = seed == null
+        ? null
+        : buildM3AccentTokens(
+            seed: seed,
+            brightness: brightness,
+            variant: variant,
+          );
+    final colors = _applyAccentTokens(baseColors, tokens);
+
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness: brightness,
       fontFamily: fontFamily,
-      scaffoldBackgroundColor: darkColors.canvasBackground,
-      extensions: const [darkColors],
-      colorScheme: ColorScheme.dark(
-        primary: darkColors.primary,
-        secondary: darkColors.primaryLight,
-        surface: darkColors.cardBackground,
-        // M3 原生组件 (Menu/DatePicker/Dialog) 依赖 surfaceContainer 层级取色，
-        // 缺省会回退紫色基底，与 Notion 冷灰风格撕裂
-        surfaceContainerLowest: darkColors.canvasBackground,
-        surfaceContainerLow: darkColors.cardBackground,
-        surfaceContainer: Color(0xFF242424),
-        surfaceContainerHigh: darkColors.elevatedBackground,
-        surfaceContainerHighest: darkColors.mutedBackground,
-        surfaceDim: darkColors.canvasBackground,
-        surfaceBright: Color(0xFF2E2E2E),
-        error: darkColors.error,
-        onPrimary: Colors.white,
-        onSurface: darkColors.textPrimary,
-        onSurfaceVariant: darkColors.textSecondary,
-      ),
+      scaffoldBackgroundColor: colors.canvasBackground,
+      extensions: [colors],
+      colorScheme: isDark
+          ? ColorScheme.dark(
+              primary: colors.primary,
+              secondary: colors.primaryLight,
+              surface: colors.cardBackground,
+              // M3 原生组件 (Menu/DatePicker/Dialog) 依赖 surfaceContainer 层级取色，
+              // 缺省会回退紫色基底，与 Notion 冷灰风格撕裂
+              surfaceContainerLowest: colors.canvasBackground,
+              surfaceContainerLow: colors.cardBackground,
+              surfaceContainer: const Color(0xFF242424),
+              surfaceContainerHigh: colors.elevatedBackground,
+              surfaceContainerHighest: colors.mutedBackground,
+              surfaceDim: colors.canvasBackground,
+              surfaceBright: const Color(0xFF2E2E2E),
+              error: colors.error,
+              onPrimary: tokens?.onPrimary ?? Colors.white,
+              onSurface: colors.textPrimary,
+              onSurfaceVariant: colors.textSecondary,
+            )
+          : ColorScheme.light(
+              primary: colors.primary,
+              secondary: colors.primaryLight,
+              surface: colors.cardBackground,
+              surfaceContainerLowest: colors.canvasBackground,
+              surfaceContainerLow: colors.mutedBackground,
+              surfaceContainer: colors.mutedBackground,
+              surfaceContainerHigh: colors.elevatedBackground,
+              surfaceContainerHighest: colors.mutedBackground,
+              error: colors.error,
+              onPrimary: tokens?.onPrimary ?? Colors.white,
+              onSurface: colors.textPrimary,
+              onSurfaceVariant: colors.textSecondary,
+            ),
       hoverColor: Colors.transparent,
       cardTheme: CardThemeData(
-        color: darkColors.cardBackground,
+        color: colors.cardBackground,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: darkColors.borderDefault, width: 1),
+          side: BorderSide(color: colors.borderDefault, width: 1),
           borderRadius: BorderRadius.circular(radiusCard),
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: darkColors.borderDefault,
+        color: colors.borderDefault,
         thickness: 1,
         space: 1,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: darkColors.cardBackground,
-        hoverColor: darkColors.cardBackground,
+        fillColor: colors.cardBackground,
+        hoverColor: colors.cardBackground,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 10,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusButton),
-          borderSide: BorderSide(color: darkColors.borderDefault),
+          borderSide: BorderSide(color: colors.borderDefault),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusButton),
-          borderSide: BorderSide(color: darkColors.borderDefault),
+          borderSide: BorderSide(color: colors.borderDefault),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusButton),
-          borderSide: BorderSide(color: darkColors.primary, width: 1.5),
+          borderSide: BorderSide(color: colors.primary, width: 1.5),
         ),
         hintStyle: TextStyle(
           fontFamily: fontFamily,
-          color: darkColors.textMuted,
+          color: colors.textMuted,
           fontSize: 13,
         ),
         labelStyle: const TextStyle(fontFamily: fontFamily, fontSize: 12),
       ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: darkColors.primary,
-        inactiveTrackColor: darkColors.mutedBackground,
-        thumbColor: darkColors.primary,
-        overlayColor: darkColors.primary.withValues(alpha: 0.12),
+        activeTrackColor: colors.primary,
+        inactiveTrackColor: colors.mutedBackground,
+        thumbColor: colors.primary,
+        overlayColor: colors.primary.withValues(alpha: 0.12),
         trackHeight: 3,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
       textTheme: TextTheme(
         headlineMedium: TextStyle(
           fontFamily: fontFamily,
-          color: darkColors.textPrimary,
+          color: colors.textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w600,
           letterSpacing: -0.2,
         ),
         titleMedium: TextStyle(
           fontFamily: fontFamily,
-          color: darkColors.textPrimary,
+          color: colors.textPrimary,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
         bodyMedium: TextStyle(
           fontFamily: fontFamily,
-          color: darkColors.textPrimary,
+          color: colors.textPrimary,
           fontSize: 13,
           height: 1.45,
         ),
         bodySmall: TextStyle(
           fontFamily: fontFamily,
-          color: darkColors.textSecondary,
+          color: colors.textSecondary,
           fontSize: 12,
         ),
       ),
       scrollbarTheme: ScrollbarThemeData(
-        thumbColor: WidgetStateProperty.all(darkColors.borderHover),
+        thumbColor: WidgetStateProperty.all(colors.borderHover),
         radius: const Radius.circular(radiusSmall),
         thickness: WidgetStateProperty.all(6),
       ),
     );
+  }
+
+  /// 将 MD3 强调色令牌覆盖到 Notion 基础色板 (仅强调色族，中性色不动)
+  static AppColorsExtension _applyAccentTokens(
+    AppColorsExtension base,
+    M3AccentTokens? tokens,
+  ) {
+    if (tokens == null) return base;
+    return base.copyWith(
+      primary: tokens.primary,
+      primaryLight: tokens.primaryLight,
+      primaryDark: tokens.primaryDark,
+      primaryTint: tokens.primaryTint,
+      accent: tokens.primary,
+      borderFocus: tokens.primary,
+    ) as AppColorsExtension;
   }
 }
