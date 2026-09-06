@@ -528,6 +528,15 @@ mixin _StudioCore on ChangeNotifier {
   /// 删除词库条目 (词库 Agent 工具写入)
   Future<void> deletePromptCombo(String id);
 
+  /// 保存预览图字节到托管目录并返回路径 (词库预览图工具)
+  Future<String?> savePromptPreviewFromBytes(
+    Uint8List bytes, {
+    String extension = 'png',
+  });
+
+  /// 从本地路径复制预览图并返回持久化路径 (词库预览图工具)
+  Future<String?> savePromptPreviewFromPath(String path);
+
   /// 发送对话消息 (支持 Slash 命令行；[images] 为用户图片附件)
   Future<void> sendChatMessage(String text, {List<AgentMessageImage>? images});
 

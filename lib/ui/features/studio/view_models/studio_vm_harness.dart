@@ -238,6 +238,17 @@ mixin _StudioHarnessMixin on _StudioCore {
       ),
     );
     _toolRegistry.register(
+      SetPromptLibraryPreviewTool(
+        getEntries: () => promptLibraryEntries,
+        updateEntry: updatePromptCombo,
+        getHistory: () => _repository.history,
+        // 内存缺失时从磁盘缓存回载大图字节，避免刚重启后的空字节
+        loadImageBytes: ensureImageLoaded,
+        savePreviewBytes: savePromptPreviewFromBytes,
+        copyPreviewFromPath: savePromptPreviewFromPath,
+      ),
+    );
+    _toolRegistry.register(
       DeletePromptLibraryEntryTool(
         getEntries: () => promptLibraryEntries,
         deleteEntry: deletePromptCombo,

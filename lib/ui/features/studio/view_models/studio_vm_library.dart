@@ -48,6 +48,7 @@ mixin _StudioLibraryMixin on _StudioCore {
   }
 
   /// 保存本地预览图片并返回路径
+  @override
   Future<String?> savePromptPreviewFromBytes(
     Uint8List bytes, {
     String extension = 'png',
@@ -59,6 +60,7 @@ mixin _StudioLibraryMixin on _StudioCore {
   }
 
   /// 从本地路径复制预览图片并返回持久化路径
+  @override
   Future<String?> savePromptPreviewFromPath(String path) async {
     return await _promptLibraryService.copyPreviewImageFromPath(path);
   }

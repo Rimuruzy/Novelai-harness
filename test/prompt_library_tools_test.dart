@@ -1,11 +1,27 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/core/harness/tools/prompt_library_tools.dart';
+import 'package:novelai_harness/data/models/novelai_models.dart';
 import 'package:novelai_harness/data/models/prompt_library_models.dart';
 import 'package:novelai_harness/data/services/prompt_library_service.dart';
 
+/// 1x1 纯净 PNG 字节 (供预览图工具解码)
+const List<int> kTestPngBytes = [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
+  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, //
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, //
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, //
+  0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, //
+  0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, //
+  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, //
+  0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, //
+  0x42, 0x60, 0x82, //
+];
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late Directory tempDir;
   late List<PromptComboEntry> entries;
 
@@ -254,5 +270,147 @@ void main() {
       deleteEntry: deleteEntry,
     ).toOpenAiFunction();
     expect(delete['function']['name'], 'delete_prompt_library_entry');
+
+    final preview = SetPromptLibraryPreviewTool(
+      getEntries: () => entries,
+      updateEntry: updateEntry,
+    ).toOpenAiFunction();
+    expect(preview['function']['name'], 'set_prompt_library_preview');
+    expect(preview['function']['parameters']['required'], ['id']);
+  });
+
+  group('预览图工具', () {
+    NaiGeneratedImage makeImage(String id) => NaiGeneratedImage(
+      id: id,
+      bytes: Uint8List.fromList(kTestPngBytes),
+      params: const NaiGenerationParams(
+        prompt: '1girl',
+        width: 832,
+        height: 1216,
+      ),
+      seed: 42,
+      isOpusFree: true,
+      createdAt: DateTime(2026, 1, 1),
+    );
+
+    SetPromptLibraryPreviewTool makeTool({
+      List<NaiGeneratedImage> history = const [],
+    }) {
+      return SetPromptLibraryPreviewTool(
+        getEntries: () => entries,
+        updateEntry: updateEntry,
+        getHistory: () => history,
+        loadImageBytes: (image) async => image.bytes,
+        savePreviewBytes: (bytes) =>
+            PromptLibraryService.instance.savePreviewImageBytes(bytes),
+        copyPreviewFromPath: (path) =>
+            PromptLibraryService.instance.copyPreviewImageFromPath(path),
+      );
+    }
+
+    test('来源校验: 缺 id / 条目不存在 / 无来源', () async {
+      final tool = makeTool(history: [makeImage('img-1')]);
+
+      final noId = await tool.execute('t1', {'index': 0});
+      expect(noId.isError, isTrue);
+
+      final missing = await tool.execute('t2', {'id': 'ghost', 'index': 0});
+      expect(missing.isError, isTrue);
+
+      final noSource = await tool.execute('t3', {'id': 'e1'});
+      expect(noSource.isError, isTrue);
+      expect(noSource.content, contains('未指定预览图来源'));
+    });
+
+    test('索引来源: 从画板历史图片设置预览图并落盘', () async {
+      final history = [makeImage('img-new'), makeImage('img-old')];
+      final tool = makeTool(history: history);
+
+      final result = await tool.execute('t1', {'id': 'e1', 'index': 0});
+      expect(result.isError, isFalse);
+      expect(result.content, contains('预览图'));
+      expect(result.content, contains('索引 0'));
+
+      final persisted = await PromptLibraryService.instance.loadEntries();
+      final updated = persisted.firstWhere((e) => e.id == 'e1');
+      expect(updated.previewImagePath, isNotNull);
+      // 落盘到托管预览目录且文件真实存在
+      expect(updated.previewImagePath!, contains('prompt_previews'));
+      expect(File(updated.previewImagePath!).existsSync(), isTrue);
+
+      // 搜索结果展示预览图状态
+      final searchTool = SearchPromptLibraryTool(getEntries: () => entries);
+      final search = await searchTool.execute('t2', {'id': 'e1'});
+      expect(search.content, contains('预览图: 已设置'));
+    });
+
+    test('索引来源: 越界与空历史报错', () async {
+      final tool = makeTool(history: [makeImage('img-1')]);
+
+      final outOfRange = await tool.execute('t1', {'id': 'e1', 'index': 5});
+      expect(outOfRange.isError, isTrue);
+      expect(outOfRange.content, contains('超出范围'));
+
+      final emptyHistory = makeTool(history: const []);
+      final empty = await emptyHistory.execute('t2', {'id': 'e1', 'index': 0});
+      expect(empty.isError, isTrue);
+      expect(empty.content, contains('没有任何历史图片'));
+    });
+
+    test('路径来源: 从本地文件复制预览图', () async {
+      final srcFile = File(
+        '${tempDir.path}${Platform.pathSeparator}source.png',
+      );
+      await srcFile.writeAsBytes(kTestPngBytes);
+
+      final tool = makeTool();
+      final result = await tool.execute('t1', {
+        'id': 'e3',
+        'image_path': srcFile.path,
+      });
+      expect(result.isError, isFalse);
+
+      final persisted = await PromptLibraryService.instance.loadEntries();
+      final updated = persisted.firstWhere((e) => e.id == 'e3');
+      expect(updated.previewImagePath, isNotNull);
+      expect(updated.previewImagePath!, contains('prompt_previews'));
+      expect(File(updated.previewImagePath!).existsSync(), isTrue);
+
+      // 不存在的路径报错
+      final badPath = await tool.execute('t2', {
+        'id': 'e3',
+        'image_path': '${tempDir.path}/not_exist.png',
+      });
+      expect(badPath.isError, isTrue);
+      expect(badPath.content, contains('未能从路径读取图片'));
+    });
+
+    test('清除预览图: 正常清除并删除托管文件；无预览图时提示无需清除', () async {
+      // 先设置预览图
+      final history = [makeImage('img-1')];
+      final tool = makeTool(history: history);
+      final setResult = await tool.execute('t1', {'id': 'e2', 'index': 0});
+      expect(setResult.isError, isFalse);
+
+      var persisted = await PromptLibraryService.instance.loadEntries();
+      var target = persisted.firstWhere((e) => e.id == 'e2');
+      final previewPath = target.previewImagePath!;
+      expect(File(previewPath).existsSync(), isTrue);
+
+      // 再清除
+      final clearResult = await tool.execute('t2', {'id': 'e2', 'clear': true});
+      expect(clearResult.isError, isFalse);
+
+      persisted = await PromptLibraryService.instance.loadEntries();
+      target = persisted.firstWhere((e) => e.id == 'e2');
+      expect(target.previewImagePath, isNull);
+      // 旧托管预览文件被同步清理，无孤儿文件
+      expect(File(previewPath).existsSync(), isFalse);
+
+      // 无预览图时再清除: 提示而非报错
+      final noop = await tool.execute('t3', {'id': 'e2', 'clear': true});
+      expect(noop.isError, isFalse);
+      expect(noop.content, contains('本就没有预览图'));
+    });
   });
 }
