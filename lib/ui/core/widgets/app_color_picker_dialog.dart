@@ -22,10 +22,7 @@ class AppColorPickerDialog extends StatefulWidget {
 
   const AppColorPickerDialog({super.key, required this.initialColor});
 
-  static Future<Color?> show(
-    BuildContext context, {
-    Color? initialColor,
-  }) {
+  static Future<Color?> show(BuildContext context, {Color? initialColor}) {
     return AppDialogScaffold.show<Color>(
       context: context,
       builder: (ctx) => AppColorPickerDialog(
@@ -68,7 +65,9 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
   void initState() {
     super.initState();
     _hsv = HSVColor.fromColor(widget.initialColor);
-    _hexController = TextEditingController(text: seedColorText(_currentColor.toARGB32()));
+    _hexController = TextEditingController(
+      text: seedColorText(_currentColor.toARGB32()),
+    );
     _hexFocus = FocusNode();
     // 失焦时提交输入框内容 (合法则采纳，非法则回显当前色)
     _hexFocus.addListener(_handleHexFocusChange);
@@ -176,8 +175,8 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
                         const SizedBox(height: AppSpacing.xs),
                         Text(
                           'H ${_hsv.hue.round()}°  '
-                              'S ${(_hsv.saturation * 100).round()}%  '
-                              'V ${(_hsv.value * 100).round()}%',
+                          'S ${(_hsv.saturation * 100).round()}%  '
+                          'V ${(_hsv.value * 100).round()}%',
                           style: context.typography.bodySmall?.copyWith(
                             color: colors.textMuted,
                             fontSize: 11,
@@ -251,8 +250,7 @@ class _AppColorPickerDialogState extends State<AppColorPickerDialog> {
                     _PresetSwatch(
                       color: preset,
                       selected: preset.toARGB32() == current.toARGB32(),
-                      onTap: () =>
-                          _update(HSVColor.fromColor(preset)),
+                      onTap: () => _update(HSVColor.fromColor(preset)),
                     ),
                 ],
               ),
@@ -303,9 +301,7 @@ class _HexField extends StatelessWidget {
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
             borderSide: BorderSide(
-              color: errorText != null
-                  ? colors.error
-                  : colors.borderDefault,
+              color: errorText != null ? colors.error : colors.borderDefault,
             ),
           ),
           focusedBorder: OutlineInputBorder(
@@ -427,9 +423,7 @@ class _GradientSlider extends StatelessWidget {
                     // 渐变条带
                     Positioned.fill(
                       child: Container(
-                        margin: const EdgeInsets.symmetric(
-                          vertical: 7,
-                        ),
+                        margin: const EdgeInsets.symmetric(vertical: 7),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(colors: gradient),
                           borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -439,7 +433,10 @@ class _GradientSlider extends StatelessWidget {
                     ),
                     // 圆形手柄
                     Positioned(
-                      left: (fraction * width - 9).clamp(0.0, math.max(width - 18, 0.0)),
+                      left: (fraction * width - 9).clamp(
+                        0.0,
+                        math.max(width - 18, 0.0),
+                      ),
                       child: Container(
                         width: 18,
                         height: 18,
@@ -450,7 +447,12 @@ class _GradientSlider extends StatelessWidget {
                             color: colors.borderHover,
                             width: 1.5,
                           ),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 2)],
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 2,
+                            ),
+                          ],
                         ),
                       ),
                     ),

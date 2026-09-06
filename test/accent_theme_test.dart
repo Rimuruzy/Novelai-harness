@@ -211,6 +211,19 @@ void main() {
       expect(ext!.primary, AppColorsExtension.light.primary);
     });
 
+    test('默认蓝模式下即使状态残留种子也不注入 (防御兑底)', () {
+      final built = AppTheme.lightThemeFor(
+        const AccentThemeState(
+          mode: AppAccentMode.defaultBlue,
+          variant: AppAccentVariant.tonalSpot,
+          seed: Color(0xFFFFB110),
+        ),
+      );
+      final ext = built.extension<AppColorsExtension>()!;
+      expect(ext.primary, AppColorsExtension.light.primary);
+      expect(built.colorScheme.primary, AppColorsExtension.light.primary);
+    });
+
     test('注入种子后仅强调色族变化 (中性色保持 Notion)', () {
       final built = AppTheme.buildTheme(
         Brightness.dark,
@@ -247,6 +260,35 @@ void main() {
       );
       expect(controller.state.value.mode, AppAccentMode.manual);
       expect(controller.state.value.seed, const Color(0xFFFFB110));
+    });
+
+    test('切回默认蓝时忽略持久化旧种子 (回归：切回后仍是旧颜色)', () {
+      final controller = AppAccentController.instance;
+      // 先手动指定种子，再保存为默认蓝模式 (accentSeedColor 仍残留旧值)
+      controller.syncFromConfig(
+        const AppConfig(
+          accentMode: AppAccentMode.manual,
+          accentSeedColor: '#FFB110',
+        ),
+      );
+      expect(controller.state.value.seed, const Color(0xFFFFB110));
+
+      var notifications = 0;
+      void listener() => notifications++;
+      controller.state.addListener(listener);
+
+      controller.syncFromConfig(
+        const AppConfig(
+          accentMode: AppAccentMode.defaultBlue,
+          accentVariant: AppAccentVariant.tonalSpot,
+          accentSeedColor: '#FFB110',
+        ),
+      );
+      controller.state.removeListener(listener);
+
+      expect(controller.state.value.mode, AppAccentMode.defaultBlue);
+      expect(controller.state.value.seed, isNull);
+      expect(notifications, 1);
     });
 
     test('自适应模式保留运行时种子', () {

@@ -87,7 +87,11 @@ class AppTheme {
     AccentThemeState? accent,
   ) => buildTheme(
     brightness,
-    seed: accent?.seed,
+    // 防御兑底：默认蓝模式一律忽略种子 (即使种子意外残留也不注入)，
+    // 保证切回默认后必然恢复原生 Notion 蓝
+    seed: accent != null && accent.mode == AppAccentMode.defaultBlue
+        ? null
+        : accent?.seed,
     variant: accent?.variant ?? AppAccentVariant.tonalSpot,
   );
 

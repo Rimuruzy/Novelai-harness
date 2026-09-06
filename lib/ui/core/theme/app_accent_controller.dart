@@ -70,7 +70,11 @@ class AppAccentController {
     final target = AccentThemeState(
       mode: config.accentMode,
       variant: config.accentVariant,
-      seed: seedArgb == null ? null : Color(seedArgb),
+      // 默认蓝模式必须忽略持久化的旧种子：
+      // 否则切回默认后旧种子仍被注入，看起来“切不回去”
+      seed: config.accentMode == AppAccentMode.defaultBlue || seedArgb == null
+          ? null
+          : Color(seedArgb),
     );
     // 自适应模式保留运行时已提取的种子 (配置里没有“当前图片色”)，
     // 只同步方案变化；mode 必须显式写入 (copyWith 不携带 mode)

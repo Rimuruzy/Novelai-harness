@@ -135,9 +135,7 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
                       onPressed: () async {
                         final picked = await AppColorPickerDialog.show(
                           context,
-                          initialColor: Color(
-                            _palette?.seed ?? 0xFF0075DE,
-                          ),
+                          initialColor: Color(_palette?.seed ?? 0xFF0075DE),
                         );
                         if (picked == null) return;
                         _applySeed(picked.toARGB32());

@@ -197,7 +197,8 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
             title: l10n.settingsAccentSeed,
             subtitle: l10n.settingsAccentSeedSubtitle,
             control: _AccentSeedSwatch(
-              color: _seedColorOf(_draft.accentSeedColor) ??
+              color:
+                  _seedColorOf(_draft.accentSeedColor) ??
                   const Color(0xFF0075DE),
               onTap: () async {
                 final picked = await AppColorPickerDialog.show(
@@ -208,9 +209,7 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                 );
                 if (picked == null) return;
                 setState(() {
-                  _draft.accentSeedColor = seedColorText(
-                    picked.toARGB32(),
-                  );
+                  _draft.accentSeedColor = seedColorText(picked.toARGB32());
                   _draft.accentMode = AppAccentMode.manual;
                 });
               },
