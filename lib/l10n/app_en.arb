@@ -1315,5 +1315,34 @@
   "promptTokenBreakdownUcPreset": "UC preset",
   "promptTokenBreakdownCharacterNegatives": "Character negatives",
   "promptTokenFeatureLimited": "Over the text rendering support limit; text rendering is limited",
-  "promptTokenOverLimit": "Over the model token limit; excess tokens will be truncated"
+  "promptTokenOverLimit": "Over the model token limit; excess tokens will be truncated",
+
+  "vmComfyPushing": "Pushing parameters to ComfyUI...",
+  "vmComfyBridgeUnreachable": "Cannot reach the ComfyUI Bridge: {error}",
+  "@vmComfyBridgeUnreachable": {"placeholders": {"error": {"type": "String"}}},
+  "vmComfyNoPromptPanel": "No Prompt Panel node found in the ComfyUI workflow; add one on the canvas first",
+  "vmComfyQueued": "Queued, waiting for ComfyUI to finish...",
+  "vmComfyWaitTimeout": "Timed out waiting for an image: keep the ComfyUI browser canvas open (queueing needs the frontend online) and make sure the workflow has an AI Image Output node",
+  "vmComfyFailed": "ComfyUI generation failed: {error}",
+  "@vmComfyFailed": {"placeholders": {"error": {"type": "String"}}},
+
+  "comfyStatusConnected": "ComfyUI connected",
+  "comfyStatusConnecting": "Connecting to ComfyUI...",
+  "comfyStatusDisconnected": "ComfyUI disconnected",
+  "comfyBridgeNodeSummary": "Prompt panels {prompts} · Resolutions {resolutions} · Params panels {params}",
+  "@comfyBridgeNodeSummary": {"placeholders": {"prompts": {"type": "int"}, "resolutions": {"type": "int"}, "params": {"type": "int"}}},
+  "comfyBackendNovelAI": "NovelAI",
+  "comfyBackendComfyUI": "ComfyUI",
+  "comfyBridgeNoPanelHint": "The workflow has no Prompt Panel node; install the PromptToolkit plugin, add its nodes on the ComfyUI canvas, and keep the browser canvas open",
+
+  "settingsSectionComfy": "ComfyUI Mode",
+  "settingsComfyEnabledTitle": "Enable ComfyUI mode",
+  "settingsComfyEnabledDesc": "Drive a local or LAN ComfyUI via the PromptToolkit AI Bridge; quality/UC presets and token limit counting are disabled in this mode",
+  "settingsComfyBaseUrlTitle": "Server address",
+  "settingsComfyBaseUrlHint": "http://192.168.1.20:8188",
+  "settingsComfyNodeIdsTitle": "Target node IDs (optional)",
+  "settingsComfyNodeIdsHint": "Leave empty to use the first registered node in the workflow",
+  "settingsComfyPromptNodeHint": "Prompt Panel node ID",
+  "settingsComfyResolutionNodeHint": "Resolution Master node ID",
+  "settingsComfyParamsNodeHint": "Params Panel node ID"
 }

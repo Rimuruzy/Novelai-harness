@@ -149,6 +149,9 @@ class _PromptsPageState extends State<PromptsPage> {
 
   // --- 只读灰色标签与工具条组装 (堆叠 / 标签页两种模式共用) ---
 
+  /// 当前是否处于 ComfyUI 模式 (质量词/UC 预设与 Token 上限不生效)
+  bool get viewModelIsComfyUi => widget.viewModel.isComfyUiMode;
+
   List<GrayTag> _promptHeaderTags(NaiGenerationParams params) {
     final hasPrefix =
         params.applyFixedPrompts &&
@@ -160,18 +163,23 @@ class _PromptsPageState extends State<PromptsPage> {
     final hasSuffix =
         params.applyFixedPrompts &&
         (params.suffixPrompt?.trim().isNotEmpty ?? false);
-    final qualityTags = NovelAiQualityTagsHelper.getQualityTags(
-      params.model,
-      _qualityPreset,
-    );
+    final qualityTags = viewModelIsComfyUi
+        ? ''
+        : NovelAiQualityTagsHelper.getQualityTags(
+            params.model,
+            _qualityPreset,
+          );
     return [
       if (hasSuffix) GrayTag('SUFFIX', params.suffixPrompt!.trim()),
       if (qualityTags.isNotEmpty) GrayTag('QUALITY', qualityTags),
-      if (params.transparentBg) const GrayTag('BG', 'transparent background'),
+      // 透明背景为 NovelAI 专属标签，ComfyUI 模式不拼接也不展示
+      if (params.transparentBg && !viewModelIsComfyUi)
+        const GrayTag('BG', 'transparent background'),
     ];
   }
 
   List<GrayTag> _negativeFooterTags(NaiGenerationParams params) {
+    if (viewModelIsComfyUi) return const [];
     final ucPresetStr = NovelAiUndesiredContentHelper.getUndesiredContent(
       params.model,
       _ucPreset,
@@ -182,8 +190,10 @@ class _PromptsPageState extends State<PromptsPage> {
     ];
   }
 
-  /// 正向提示词底部工具条：左 Transparent BG (仅 V5 模型)，右 Quality Tags 预设胶囊 (全宽自适应省略)
-  Widget _promptToolbar(NaiGenerationParams params) {
+  /// 正向提示词底部工具条：左 Transparent BG (仅 V5 模型)，右 Quality Tags 预设胶囊 (全宽自适应省略)；
+  /// ComfyUI 模式下质量预设与透明背景均不生效，不渲染工具条
+  Widget? _promptToolbar(NaiGenerationParams params) {
+    if (viewModelIsComfyUi) return null;
     return Row(
       children: [
         if (params.model.isV5) ...[
@@ -210,8 +220,10 @@ class _PromptsPageState extends State<PromptsPage> {
     );
   }
 
-  /// 负面提示词底部工具条：UC Preset 下拉 (胶囊全宽右对齐，超长标签自动省略)
-  Widget _negativeToolbar(NaiGenerationParams params) {
+  /// 负面提示词底部工具条：UC Preset 下拉 (胶囊全宽右对齐，超长标签自动省略)；
+  /// ComfyUI 模式下 UC 预设不生效，不渲染工具条
+  Widget? _negativeToolbar(NaiGenerationParams params) {
+    if (viewModelIsComfyUi) return null;
     final presets = NovelAiUndesiredContentHelper.availablePresets;
     return Row(
       children: [
@@ -310,7 +322,9 @@ class _PromptsPageState extends State<PromptsPage> {
           toolbar: _promptToolbar(params),
           enableAutocomplete: viewModel.config.enableTagAutocomplete,
           showTranslation: viewModel.config.showTagTranslations,
-          tokenUsage: PromptTokenCounterService.instance.countPositive(params),
+          tokenUsage: viewModelIsComfyUi
+              ? null
+              : PromptTokenCounterService.instance.countPositive(params),
         ),
 
         const SizedBox(height: 16),
@@ -362,7 +376,9 @@ class _PromptsPageState extends State<PromptsPage> {
           toolbar: _negativeToolbar(params),
           enableAutocomplete: viewModel.config.enableTagAutocomplete,
           showTranslation: viewModel.config.showTagTranslations,
-          tokenUsage: PromptTokenCounterService.instance.countNegative(params),
+          tokenUsage: viewModelIsComfyUi
+              ? null
+              : PromptTokenCounterService.instance.countNegative(params),
         ),
       ],
     );
@@ -444,9 +460,11 @@ class _PromptsPageState extends State<PromptsPage> {
             toolbar: _promptToolbar(params),
             enableAutocomplete: viewModel.config.enableTagAutocomplete,
             showTranslation: viewModel.config.showTagTranslations,
-            tokenUsage: PromptTokenCounterService.instance.countPositive(
-              params,
-            ),
+            tokenUsage: viewModelIsComfyUi
+                ? null
+                : PromptTokenCounterService.instance.countPositive(
+                    params,
+                  ),
           )
         else
           PromptEditorCard(
@@ -461,9 +479,11 @@ class _PromptsPageState extends State<PromptsPage> {
             toolbar: _negativeToolbar(params),
             enableAutocomplete: viewModel.config.enableTagAutocomplete,
             showTranslation: viewModel.config.showTagTranslations,
-            tokenUsage: PromptTokenCounterService.instance.countNegative(
-              params,
-            ),
+            tokenUsage: viewModelIsComfyUi
+                ? null
+                : PromptTokenCounterService.instance.countNegative(
+                    params,
+                  ),
           ),
       ],
     );

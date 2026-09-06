@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../data/models/comfyui_models.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -79,7 +80,9 @@ class GenerateDock extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (info == null)
+          // ComfyUI 模式：账号栏换成 Bridge 连接状态 (无点数概念)
+          if (viewModel.isComfyUiMode) _ComfyStatusRow(viewModel: viewModel)
+          else if (info == null)
             Row(
               children: [
                 Expanded(
@@ -242,6 +245,84 @@ class _RefreshButton extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       constraints: const BoxConstraints(),
       onPressed: isLoading ? null : () => viewModel.refreshAccountInfo(),
+    );
+  }
+}
+
+/// ComfyUI 模式状态行：连接状态点 + 文案 + 服务地址 + 刷新按钮
+class _ComfyStatusRow extends StatelessWidget {
+  final StudioViewModel viewModel;
+
+  const _ComfyStatusRow({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final status = viewModel.comfyConnectionStatus;
+
+    final statusColor = switch (status) {
+      ComfyUiConnectionStatus.connected => colors.success,
+      ComfyUiConnectionStatus.connecting => colors.warning,
+      ComfyUiConnectionStatus.disconnected => colors.error,
+    };
+    final statusText = switch (status) {
+      ComfyUiConnectionStatus.connected => l10n.comfyStatusConnected,
+      ComfyUiConnectionStatus.connecting => l10n.comfyStatusConnecting,
+      ComfyUiConnectionStatus.disconnected => l10n.comfyStatusDisconnected,
+    };
+
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: statusColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          statusText,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            viewModel.config.comfyUiBaseUrl,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: colors.textSecondary,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 6),
+        if (status == ComfyUiConnectionStatus.connecting)
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+            ),
+          )
+        else
+          IconButton(
+            icon: Icon(Icons.refresh, size: 17, color: colors.textSecondary),
+            tooltip: l10n.dockRefreshTooltip,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.all(3),
+            constraints: const BoxConstraints(),
+            onPressed: () => viewModel.refreshComfyUiStatus(),
+          ),
+      ],
     );
   }
 }

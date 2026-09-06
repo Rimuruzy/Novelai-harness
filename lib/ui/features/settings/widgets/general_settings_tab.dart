@@ -20,6 +20,18 @@ class GeneralSettingsDraft {
   GeneralSettingsDraft(AppConfig config)
     : naiKeyController = TextEditingController(text: config.novelAiKey),
       saveDirController = TextEditingController(text: config.saveDirectory),
+      comfyBaseUrlController = TextEditingController(
+        text: config.comfyUiBaseUrl,
+      ),
+      comfyPromptNodeController = TextEditingController(
+        text: config.comfyUiPromptNodeId,
+      ),
+      comfyResolutionNodeController = TextEditingController(
+        text: config.comfyUiResolutionNodeId,
+      ),
+      comfyParamsNodeController = TextEditingController(
+        text: config.comfyUiParamsNodeId,
+      ),
       opusFreeMode = config.opusFreeMode,
       themeMode = config.themeMode,
       accentMode = config.accentMode,
@@ -32,13 +44,21 @@ class GeneralSettingsDraft {
       showTagTranslations = config.showTagTranslations,
       showTagCategoryColors = config.showTagCategoryColors,
       enableTagDictionaryAutoUpdate = config.enableTagDictionaryAutoUpdate,
-      enableImagePersistence = config.enableImagePersistence,
-      maxPersistentImages = config.maxPersistentImages,
-      autoSaveImages = config.autoSaveImages;
+    enableImagePersistence = config.enableImagePersistence,
+    maxPersistentImages = config.maxPersistentImages,
+    autoSaveImages = config.autoSaveImages,
+    comfyUiEnabled = config.comfyUiEnabled;
 
   final TextEditingController naiKeyController;
   final TextEditingController saveDirController;
   bool opusFreeMode;
+
+  /// ComfyUI 模式：服务地址与目标节点 ID (保存时由 SettingsDialog 聚合)
+  final TextEditingController comfyBaseUrlController;
+  final TextEditingController comfyPromptNodeController;
+  final TextEditingController comfyResolutionNodeController;
+  final TextEditingController comfyParamsNodeController;
+  bool comfyUiEnabled;
 
   /// 主题模式偏好 (跟随系统/亮色/深色)，保存时由 SettingsDialog 聚合进 AppConfig
   AppThemeModePreference themeMode;
@@ -69,6 +89,10 @@ class GeneralSettingsDraft {
   void dispose() {
     naiKeyController.dispose();
     saveDirController.dispose();
+    comfyBaseUrlController.dispose();
+    comfyPromptNodeController.dispose();
+    comfyResolutionNodeController.dispose();
+    comfyParamsNodeController.dispose();
   }
 }
 
@@ -341,6 +365,77 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     setState(() => _draft.maxPersistentImages = count),
               ),
             ),
+          const SizedBox(height: 12),
+          AppSectionHeader(title: l10n.settingsSectionComfy),
+          AppSettingTile.switchTile(
+            title: l10n.settingsComfyEnabledTitle,
+            subtitle: l10n.settingsComfyEnabledDesc,
+            value: _draft.comfyUiEnabled,
+            onChanged: (val) => setState(() => _draft.comfyUiEnabled = val),
+          ),
+          if (_draft.comfyUiEnabled) ...[
+            AppSettingTile(
+              title: l10n.settingsComfyBaseUrlTitle,
+              control: SettingsKeyField(
+                controller: _draft.comfyBaseUrlController,
+                hintText: l10n.settingsComfyBaseUrlHint,
+              ),
+            ),
+            AppSettingTile(
+              title: l10n.settingsComfyNodeIdsTitle,
+              subtitle: l10n.settingsComfyNodeIdsHint,
+              control: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    width: 220,
+                    child: TextField(
+                      controller: _draft.comfyPromptNodeController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: l10n.settingsComfyPromptNodeHint,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: 220,
+                    child: TextField(
+                      controller: _draft.comfyResolutionNodeController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: l10n.settingsComfyResolutionNodeHint,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: 220,
+                    child: TextField(
+                      controller: _draft.comfyParamsNodeController,
+                      style: const TextStyle(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: l10n.settingsComfyParamsNodeHint,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           AppSectionHeader(title: l10n.settingsSectionTagAutocomplete),
           AppSettingTile.switchTile(

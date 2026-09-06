@@ -24,10 +24,12 @@ import '../../../../core/harness/tools/prompt_library_tools.dart';
 import '../../../../core/harness/tools/studio_params_tool.dart';
 import '../../../../core/harness/types.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/models/comfyui_models.dart';
 import '../../../../data/models/prompt_library_models.dart';
 import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
+import '../../../../data/services/comfyui_service.dart';
 import '../../../../data/services/image_metadata_service.dart';
 import '../../../../data/services/palette_service.dart';
 import '../../../../data/services/prompt_token_counter_service.dart';
@@ -47,6 +49,7 @@ import 'streaming_controllers.dart';
 
 part 'studio_vm_characters.dart';
 part 'studio_vm_chat.dart';
+part 'studio_vm_comfyui.dart';
 part 'studio_vm_generation.dart';
 part 'studio_vm_harness.dart';
 part 'studio_vm_inpaint.dart';
@@ -218,12 +221,24 @@ mixin _StudioCore on ChangeNotifier {
     notifyListeners();
   }
 
-  /// 当前工作台参数的预计 Anlas 消耗 (账号未加载时按非 Opus 保守估算)
-  int get estimatedGenerationCost => AnlasCalculator.estimateGenerationCost(
-    params: _params,
-    isOpus: _accountInfo?.isOpus ?? false,
-    opusQuotaExhausted: _accountInfo?.v5QuotaExhausted ?? false,
-  );
+  /// ComfyUI 模式开关 (开启后生图改走 PromptToolkit AI Bridge，
+  /// 旁路质量词/UC 预设与 Token 上限)
+  bool get isComfyUiMode => _config.comfyUiEnabled;
+
+  /// ComfyUI Bridge 连接状态 / 节点注册快照 / 最近一次错误
+  ComfyUiConnectionStatus get comfyConnectionStatus;
+  ComfyUiBridgeState? get comfyBridgeState;
+  String? get comfyLastError;
+
+  /// 当前工作台参数的预计 Anlas 消耗 (账号未加载时按非 Opus 保守估算)；
+  /// ComfyUI 模式下本地不产生 Anlas 消耗，恒为 0
+  int get estimatedGenerationCost => isComfyUiMode
+      ? 0
+      : AnlasCalculator.estimateGenerationCost(
+          params: _params,
+          isOpus: _accountInfo?.isOpus ?? false,
+          opusQuotaExhausted: _accountInfo?.v5QuotaExhausted ?? false,
+        );
   bool get isLoadingAccount => _isLoadingAccount;
   bool get isGenerating => _isGenerating;
   bool get isChatStreaming => _isChatStreaming;
@@ -387,6 +402,9 @@ mixin _StudioCore on ChangeNotifier {
 
   // ------------- 跨分部方法签名 (由各分部 Mixin 实现) -------------
 
+  /// 应用并持久化新配置 (类体实现；各分部可调用)
+  Future<void> updateConfig(AppConfig newConfig);
+
   /// 装配 Harness、注册全部工具并配置 LLM Provider
   void _setupHarnessAndTools();
 
@@ -395,6 +413,24 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 手动快速生图
   Future<void> generateImage();
+
+  /// ComfyUI 模式生图 (经 PromptToolkit AI Bridge 驱动)
+  Future<void> generateImageViaComfyUi();
+
+  /// 刷新 ComfyUI Bridge 连接状态与节点注册快照
+  Future<void> refreshComfyUiStatus();
+
+  /// 切换 ComfyUI 模式开关
+  Future<void> setComfyUiMode(bool enabled);
+
+  /// 标记中止当前 ComfyUI 出图等待
+  void _requestComfyAbort();
+
+  /// 种子生成控制：生图前变更种子
+  void _applySeedMutationBefore();
+
+  /// 种子生成控制：生图后变更种子
+  void _applySeedMutationAfter(int generatedSeed);
 
   /// 超分放大当前图片 (官方新超分模型，固定倍率)
   Future<void> upscaleSelected();
@@ -527,6 +563,7 @@ class StudioViewModel extends ChangeNotifier
         _StudioCore,
         _StudioLayoutMixin,
         _StudioHarnessMixin,
+        _StudioComfyMixin,
         _StudioGenerationMixin,
         _StudioChatMixin,
         _StudioSessionsMixin,
@@ -706,6 +743,7 @@ class StudioViewModel extends ChangeNotifier
   }
 
   /// 保存全局配置
+  @override
   Future<void> updateConfig(AppConfig newConfig) async {
     final oldConfig = _config;
     _config = newConfig;
@@ -733,6 +771,16 @@ class StudioViewModel extends ChangeNotifier
     };
     // UI 缩放同理：根级 ValueListenableBuilder 局部接管，不全局重绘
     AppUiZoomController.instance.syncFromConfig(newConfig);
+    // ComfyUI 模式：开关或地址变化时刷新 Bridge 连接状态
+    if (newConfig.comfyUiEnabled != oldConfig.comfyUiEnabled ||
+        newConfig.comfyUiBaseUrl != oldConfig.comfyUiBaseUrl) {
+      if (newConfig.comfyUiEnabled) {
+        unawaited(refreshComfyUiStatus());
+      } else {
+        _comfyStatus = ComfyUiConnectionStatus.disconnected;
+        _comfyBridgeState = null;
+      }
+    }
     notifyListeners();
     await _configService.saveConfig(newConfig);
 

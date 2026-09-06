@@ -5425,6 +5425,144 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'超过模型 Token 上限，超出部分将被截断'**
   String get promptTokenOverLimit;
+
+  /// No description provided for @vmComfyPushing.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在向 ComfyUI 推送参数…'**
+  String get vmComfyPushing;
+
+  /// No description provided for @vmComfyBridgeUnreachable.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法连接 ComfyUI Bridge：{error}'**
+  String vmComfyBridgeUnreachable(String error);
+
+  /// No description provided for @vmComfyNoPromptPanel.
+  ///
+  /// In zh, this message translates to:
+  /// **'ComfyUI 工作流中未发现 Prompt Panel 节点，请先在画布添加'**
+  String get vmComfyNoPromptPanel;
+
+  /// No description provided for @vmComfyQueued.
+  ///
+  /// In zh, this message translates to:
+  /// **'已排队，等待 ComfyUI 出图…'**
+  String get vmComfyQueued;
+
+  /// No description provided for @vmComfyWaitTimeout.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待出图超时：请确认 ComfyUI 浏览器画布已打开 (排队需前端在线) 且工作流含 AI Image Output 节点'**
+  String get vmComfyWaitTimeout;
+
+  /// No description provided for @vmComfyFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'ComfyUI 生图失败：{error}'**
+  String vmComfyFailed(String error);
+
+  /// No description provided for @comfyStatusConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'ComfyUI 已连接'**
+  String get comfyStatusConnected;
+
+  /// No description provided for @comfyStatusConnecting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在连接 ComfyUI…'**
+  String get comfyStatusConnecting;
+
+  /// No description provided for @comfyStatusDisconnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'ComfyUI 未连接'**
+  String get comfyStatusDisconnected;
+
+  /// No description provided for @comfyBridgeNodeSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示词面板 {prompts} · 分辨率 {resolutions} · 参数面板 {params}'**
+  String comfyBridgeNodeSummary(int prompts, int resolutions, int params);
+
+  /// No description provided for @comfyBackendNovelAI.
+  ///
+  /// In zh, this message translates to:
+  /// **'NovelAI'**
+  String get comfyBackendNovelAI;
+
+  /// No description provided for @comfyBackendComfyUI.
+  ///
+  /// In zh, this message translates to:
+  /// **'ComfyUI'**
+  String get comfyBackendComfyUI;
+
+  /// No description provided for @comfyBridgeNoPanelHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'工作流缺少 Prompt Panel 节点；需安装 PromptToolkit 插件并在 ComfyUI 画布中添加节点后保持浏览器画布打开'**
+  String get comfyBridgeNoPanelHint;
+
+  /// No description provided for @settingsSectionComfy.
+  ///
+  /// In zh, this message translates to:
+  /// **'ComfyUI 模式'**
+  String get settingsSectionComfy;
+
+  /// No description provided for @settingsComfyEnabledTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用 ComfyUI 模式'**
+  String get settingsComfyEnabledTitle;
+
+  /// No description provided for @settingsComfyEnabledDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'经 PromptToolkit AI Bridge 驱动本地或局域网 ComfyUI 生图；此模式下质量词与 UC 预设及 Token 上限计算均不生效'**
+  String get settingsComfyEnabledDesc;
+
+  /// No description provided for @settingsComfyBaseUrlTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务地址'**
+  String get settingsComfyBaseUrlTitle;
+
+  /// No description provided for @settingsComfyBaseUrlHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'http://192.168.1.20:8188'**
+  String get settingsComfyBaseUrlHint;
+
+  /// No description provided for @settingsComfyNodeIdsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'目标节点 ID (可选)'**
+  String get settingsComfyNodeIdsTitle;
+
+  /// No description provided for @settingsComfyNodeIdsHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'留空自动使用工作流中第一个注册节点'**
+  String get settingsComfyNodeIdsHint;
+
+  /// No description provided for @settingsComfyPromptNodeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'Prompt Panel 节点 ID'**
+  String get settingsComfyPromptNodeHint;
+
+  /// No description provided for @settingsComfyResolutionNodeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'Resolution Master 节点 ID'**
+  String get settingsComfyResolutionNodeHint;
+
+  /// No description provided for @settingsComfyParamsNodeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'Params Panel 节点 ID'**
+  String get settingsComfyParamsNodeHint;
 }
 
 class _AppLocalizationsDelegate

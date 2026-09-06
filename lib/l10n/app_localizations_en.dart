@@ -3082,4 +3082,84 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get promptTokenOverLimit =>
       'Over the model token limit; excess tokens will be truncated';
+
+  @override
+  String get vmComfyPushing => 'Pushing parameters to ComfyUI...';
+
+  @override
+  String vmComfyBridgeUnreachable(String error) {
+    return 'Cannot reach the ComfyUI Bridge: $error';
+  }
+
+  @override
+  String get vmComfyNoPromptPanel =>
+      'No Prompt Panel node found in the ComfyUI workflow; add one on the canvas first';
+
+  @override
+  String get vmComfyQueued => 'Queued, waiting for ComfyUI to finish...';
+
+  @override
+  String get vmComfyWaitTimeout =>
+      'Timed out waiting for an image: keep the ComfyUI browser canvas open (queueing needs the frontend online) and make sure the workflow has an AI Image Output node';
+
+  @override
+  String vmComfyFailed(String error) {
+    return 'ComfyUI generation failed: $error';
+  }
+
+  @override
+  String get comfyStatusConnected => 'ComfyUI connected';
+
+  @override
+  String get comfyStatusConnecting => 'Connecting to ComfyUI...';
+
+  @override
+  String get comfyStatusDisconnected => 'ComfyUI disconnected';
+
+  @override
+  String comfyBridgeNodeSummary(int prompts, int resolutions, int params) {
+    return 'Prompt panels $prompts · Resolutions $resolutions · Params panels $params';
+  }
+
+  @override
+  String get comfyBackendNovelAI => 'NovelAI';
+
+  @override
+  String get comfyBackendComfyUI => 'ComfyUI';
+
+  @override
+  String get comfyBridgeNoPanelHint =>
+      'The workflow has no Prompt Panel node; install the PromptToolkit plugin, add its nodes on the ComfyUI canvas, and keep the browser canvas open';
+
+  @override
+  String get settingsSectionComfy => 'ComfyUI Mode';
+
+  @override
+  String get settingsComfyEnabledTitle => 'Enable ComfyUI mode';
+
+  @override
+  String get settingsComfyEnabledDesc =>
+      'Drive a local or LAN ComfyUI via the PromptToolkit AI Bridge; quality/UC presets and token limit counting are disabled in this mode';
+
+  @override
+  String get settingsComfyBaseUrlTitle => 'Server address';
+
+  @override
+  String get settingsComfyBaseUrlHint => 'http://192.168.1.20:8188';
+
+  @override
+  String get settingsComfyNodeIdsTitle => 'Target node IDs (optional)';
+
+  @override
+  String get settingsComfyNodeIdsHint =>
+      'Leave empty to use the first registered node in the workflow';
+
+  @override
+  String get settingsComfyPromptNodeHint => 'Prompt Panel node ID';
+
+  @override
+  String get settingsComfyResolutionNodeHint => 'Resolution Master node ID';
+
+  @override
+  String get settingsComfyParamsNodeHint => 'Params Panel node ID';
 }

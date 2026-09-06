@@ -352,6 +352,21 @@ class NovelAiRepository {
     );
   }
 
+  /// 登记一张 ComfyUI 生成的成品图 (字节来自 AI Bridge raw 拉取，
+  /// 无本地缓存文件，处于未保存态，由用户手动或导出管道处理)
+  NaiGeneratedImage recordComfyUiImage({
+    required String id,
+    required Uint8List bytes,
+    required NaiGenerationParams params,
+    required int seed,
+  }) => _recordGenerated(
+    id: id,
+    bytes: bytes,
+    params: params,
+    seed: seed,
+    isUnsaved: true,
+  );
+
   /// 构造生成结果并插入历史头部
   NaiGeneratedImage _recordGenerated({
     required String id,

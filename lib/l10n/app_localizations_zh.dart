@@ -2931,4 +2931,82 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get promptTokenOverLimit => '超过模型 Token 上限，超出部分将被截断';
+
+  @override
+  String get vmComfyPushing => '正在向 ComfyUI 推送参数…';
+
+  @override
+  String vmComfyBridgeUnreachable(String error) {
+    return '无法连接 ComfyUI Bridge：$error';
+  }
+
+  @override
+  String get vmComfyNoPromptPanel => 'ComfyUI 工作流中未发现 Prompt Panel 节点，请先在画布添加';
+
+  @override
+  String get vmComfyQueued => '已排队，等待 ComfyUI 出图…';
+
+  @override
+  String get vmComfyWaitTimeout =>
+      '等待出图超时：请确认 ComfyUI 浏览器画布已打开 (排队需前端在线) 且工作流含 AI Image Output 节点';
+
+  @override
+  String vmComfyFailed(String error) {
+    return 'ComfyUI 生图失败：$error';
+  }
+
+  @override
+  String get comfyStatusConnected => 'ComfyUI 已连接';
+
+  @override
+  String get comfyStatusConnecting => '正在连接 ComfyUI…';
+
+  @override
+  String get comfyStatusDisconnected => 'ComfyUI 未连接';
+
+  @override
+  String comfyBridgeNodeSummary(int prompts, int resolutions, int params) {
+    return '提示词面板 $prompts · 分辨率 $resolutions · 参数面板 $params';
+  }
+
+  @override
+  String get comfyBackendNovelAI => 'NovelAI';
+
+  @override
+  String get comfyBackendComfyUI => 'ComfyUI';
+
+  @override
+  String get comfyBridgeNoPanelHint =>
+      '工作流缺少 Prompt Panel 节点；需安装 PromptToolkit 插件并在 ComfyUI 画布中添加节点后保持浏览器画布打开';
+
+  @override
+  String get settingsSectionComfy => 'ComfyUI 模式';
+
+  @override
+  String get settingsComfyEnabledTitle => '启用 ComfyUI 模式';
+
+  @override
+  String get settingsComfyEnabledDesc =>
+      '经 PromptToolkit AI Bridge 驱动本地或局域网 ComfyUI 生图；此模式下质量词与 UC 预设及 Token 上限计算均不生效';
+
+  @override
+  String get settingsComfyBaseUrlTitle => '服务地址';
+
+  @override
+  String get settingsComfyBaseUrlHint => 'http://192.168.1.20:8188';
+
+  @override
+  String get settingsComfyNodeIdsTitle => '目标节点 ID (可选)';
+
+  @override
+  String get settingsComfyNodeIdsHint => '留空自动使用工作流中第一个注册节点';
+
+  @override
+  String get settingsComfyPromptNodeHint => 'Prompt Panel 节点 ID';
+
+  @override
+  String get settingsComfyResolutionNodeHint => 'Resolution Master 节点 ID';
+
+  @override
+  String get settingsComfyParamsNodeHint => 'Params Panel 节点 ID';
 }

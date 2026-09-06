@@ -75,6 +75,11 @@ mixin _StudioGenerationMixin on _StudioCore {
   /// 强行中止当前正在执行的生图流
   Future<void> abortGeneration() async {
     if (!_isGenerating) return;
+    // ComfyUI 模式：置中止标记，由轮询循环自行收尾
+    if (isComfyUiMode) {
+      _requestComfyAbort();
+      return;
+    }
     await _generationSubscription?.cancel();
     _generationSubscription = null;
     _isGenerating = false;
@@ -89,6 +94,12 @@ mixin _StudioGenerationMixin on _StudioCore {
     if (_params.prompt.trim().isEmpty) {
       _errorMessage = vmL10n.vmGenEmptyPrompt;
       notifyListeners();
+      return;
+    }
+
+    // ComfyUI 模式：改走 PromptToolkit AI Bridge 驱动流水线
+    if (isComfyUiMode) {
+      await generateImageViaComfyUi();
       return;
     }
 
@@ -235,6 +246,7 @@ mixin _StudioGenerationMixin on _StudioCore {
   }
 
   /// 生图前根据种子模式更新种子 (当 timing == before 时触发)
+  @override
   void _applySeedMutationBefore() {
     switch (_params.seedMode) {
       case NaiSeedMode.random:
@@ -254,6 +266,7 @@ mixin _StudioGenerationMixin on _StudioCore {
   }
 
   /// 生图后根据种子模式更新种子 (当 timing == after 时触发)
+  @override
   void _applySeedMutationAfter(int generatedSeed) {
     switch (_params.seedMode) {
       case NaiSeedMode.random:

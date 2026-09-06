@@ -177,6 +177,19 @@ class AppConfig {
   final bool keepOriginalImage;
   final WatermarkConfig watermarkConfig;
 
+  // ComfyUI 模式 (经 PromptToolkit AI Bridge 驱动本地/局域网 ComfyUI 生图)
+  /// 是否启用 ComfyUI 模式：开启后生图改走 Bridge，
+  /// 质量词/UC 预设拼接与 Token 上限计数全部旁路
+  final bool comfyUiEnabled;
+
+  /// ComfyUI 服务地址 (支持局域网地址，方便手机等设备连接)
+  final String comfyUiBaseUrl;
+
+  /// 目标节点 ID 覆盖 (空 = 自动取注册表第一个)
+  final String comfyUiPromptNodeId;
+  final String comfyUiResolutionNodeId;
+  final String comfyUiParamsNodeId;
+
   // LLM 设置 (多供应商配置)
   final List<LlmProviderConfig> llmProviders;
   final String activeLlmProviderId;
@@ -275,6 +288,11 @@ class AppConfig {
     this.enableWatermark = false,
     this.keepOriginalImage = false,
     this.watermarkConfig = const WatermarkConfig(),
+    this.comfyUiEnabled = false,
+    this.comfyUiBaseUrl = 'http://127.0.0.1:8188',
+    this.comfyUiPromptNodeId = '',
+    this.comfyUiResolutionNodeId = '',
+    this.comfyUiParamsNodeId = '',
     this.llmProviders = const [],
     this.activeLlmProviderId = 'deepseek',
     this.imageEditProviderId = '',
@@ -320,6 +338,11 @@ class AppConfig {
     bool? enableWatermark,
     bool? keepOriginalImage,
     WatermarkConfig? watermarkConfig,
+    bool? comfyUiEnabled,
+    String? comfyUiBaseUrl,
+    String? comfyUiPromptNodeId,
+    String? comfyUiResolutionNodeId,
+    String? comfyUiParamsNodeId,
     List<LlmProviderConfig>? llmProviders,
     String? activeLlmProviderId,
     String? imageEditProviderId,
@@ -371,6 +394,12 @@ class AppConfig {
       enableWatermark: enableWatermark ?? this.enableWatermark,
       keepOriginalImage: keepOriginalImage ?? this.keepOriginalImage,
       watermarkConfig: watermarkConfig ?? this.watermarkConfig,
+      comfyUiEnabled: comfyUiEnabled ?? this.comfyUiEnabled,
+      comfyUiBaseUrl: comfyUiBaseUrl ?? this.comfyUiBaseUrl,
+      comfyUiPromptNodeId: comfyUiPromptNodeId ?? this.comfyUiPromptNodeId,
+      comfyUiResolutionNodeId:
+          comfyUiResolutionNodeId ?? this.comfyUiResolutionNodeId,
+      comfyUiParamsNodeId: comfyUiParamsNodeId ?? this.comfyUiParamsNodeId,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
       imageEditProviderId: imageEditProviderId ?? this.imageEditProviderId,

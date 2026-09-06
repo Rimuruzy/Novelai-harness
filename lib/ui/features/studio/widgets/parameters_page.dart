@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../data/models/comfyui_models.dart';
 import '../../../../data/models/novelai_models.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
@@ -92,18 +93,41 @@ class _ParametersPageState extends State<ParametersPage> {
             PageHeader(title: l10n.paramsPageTitle, subtitle: l10n.paramsPageSubtitle),
             const SizedBox(height: 16),
 
-            // 1. 模型选择
-            SectionHeader(l10n.paramsSectionModel),
-            const SizedBox(height: 8),
-            AppDropdown<NaiModel>.simple(
-              value: params.model,
-              items: NaiModel.values,
-              labelOf: (m) => m.label,
-              iconOf: (m) => Icons.auto_awesome_outlined,
-              trailingOf: (m, _) =>
-                  m.isV5 ? AppBadge.pill(label: 'V5', fontSize: 10) : null,
-              onChanged: viewModel.selectModel,
+            // 0. 生成后端切换 (NovelAI 官方接口 ↔ ComfyUI AI Bridge)
+            AppSegmentedPillBar<String>(
+              items: [
+                AppSegmentedItem(
+                  value: 'novelai',
+                  label: l10n.comfyBackendNovelAI,
+                ),
+                AppSegmentedItem(
+                  value: 'comfyui',
+                  label: l10n.comfyBackendComfyUI,
+                ),
+              ],
+              selectedValue: viewModel.isComfyUiMode ? 'comfyui' : 'novelai',
+              expand: true,
+              onValueChanged: (v) =>
+                  viewModel.setComfyUiMode(v == 'comfyui'),
             ),
+            const SizedBox(height: 16),
+
+            // 1. 模型选择 (NovelAI 模式) / ComfyUI 连接状态卡 (ComfyUI 模式)
+            if (viewModel.isComfyUiMode)
+              _ComfyConnectionCard(viewModel: viewModel)
+            else ...[
+              SectionHeader(l10n.paramsSectionModel),
+              const SizedBox(height: 8),
+              AppDropdown<NaiModel>.simple(
+                value: params.model,
+                items: NaiModel.values,
+                labelOf: (m) => m.label,
+                iconOf: (m) => Icons.auto_awesome_outlined,
+                trailingOf: (m, _) =>
+                    m.isV5 ? AppBadge.pill(label: 'V5', fontSize: 10) : null,
+                onChanged: viewModel.selectModel,
+              ),
+            ],
             const SizedBox(height: 16),
 
             // 2. 官方标准分辨率预设与 2D 可视化画板
@@ -140,15 +164,17 @@ class _ParametersPageState extends State<ParametersPage> {
             ),
             const SizedBox(height: 18),
 
-            // 5. Seed & Sampler 两栏
+            // 5. Seed & Sampler 两栏 (ComfyUI 模式下采样器由工作流决定，只留 Seed)
             _SeedAndSamplerRow(
               viewModel: viewModel,
               seedController: _seedController,
+              showSampler: !viewModel.isComfyUiMode,
             ),
             const SizedBox(height: 14),
 
-            // 6. Advanced Settings 折叠面板
-            _AdvancedSettingsSection(viewModel: viewModel),
+            // 6. Advanced Settings 折叠面板 (NovelAI 专属高级选项)
+            if (!viewModel.isComfyUiMode)
+              _AdvancedSettingsSection(viewModel: viewModel),
           ],
         );
       },
@@ -160,10 +186,12 @@ class _ParametersPageState extends State<ParametersPage> {
 class _SeedAndSamplerRow extends StatefulWidget {
   final StudioViewModel viewModel;
   final TextEditingController seedController;
+  final bool showSampler;
 
   const _SeedAndSamplerRow({
     required this.viewModel,
     required this.seedController,
+    this.showSampler = true,
   });
 
   @override
@@ -300,24 +328,25 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
           ),
         ),
         const SizedBox(width: 10),
-        Expanded(
-          flex: 6,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SectionHeader(l10n.paramsSectionSampler),
-              const SizedBox(height: 8),
-              AppDropdown<NaiSampler>.simple(
-                value: params.sampler,
-                items: NaiSampler.values,
-                labelOf: (s) => s.label,
-                iconOf: (s) => Icons.tune_rounded,
-                onChanged: (s) =>
-                    widget.viewModel.updateParams(params.copyWith(sampler: s)),
-              ),
-            ],
+        if (widget.showSampler)
+          Expanded(
+            flex: 6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SectionHeader(l10n.paramsSectionSampler),
+                const SizedBox(height: 8),
+                AppDropdown<NaiSampler>.simple(
+                  value: params.sampler,
+                  items: NaiSampler.values,
+                  labelOf: (s) => s.label,
+                  iconOf: (s) => Icons.tune_rounded,
+                  onChanged: (s) =>
+                      widget.viewModel.updateParams(params.copyWith(sampler: s)),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -712,6 +741,123 @@ class _AdvancedSettingsSection extends StatelessWidget {
               onChanged: (val) => viewModel.setKeepOriginalImage(val),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// ComfyUI 模式连接状态卡：Bridge 连接状态 / 服务地址 / 节点注册概览 / 刷新
+///
+/// ComfyUI 模式下取代模型选择区：模型与采样器由 ComfyUI 工作流决定，
+/// 工作台只负责经 AI Bridge 推送提示词与参数。
+class _ComfyConnectionCard extends StatelessWidget {
+  final StudioViewModel viewModel;
+
+  const _ComfyConnectionCard({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final status = viewModel.comfyConnectionStatus;
+    final state = viewModel.comfyBridgeState;
+
+    final statusColor = switch (status) {
+      ComfyUiConnectionStatus.connected => colors.success,
+      ComfyUiConnectionStatus.connecting => colors.warning,
+      ComfyUiConnectionStatus.disconnected => colors.error,
+    };
+    final statusText = switch (status) {
+      ComfyUiConnectionStatus.connected => l10n.comfyStatusConnected,
+      ComfyUiConnectionStatus.connecting => l10n.comfyStatusConnecting,
+      ComfyUiConnectionStatus.disconnected => l10n.comfyStatusDisconnected,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.cardBackground,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: colors.borderDefault),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              if (status == ComfyUiConnectionStatus.connecting)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: Icon(
+                    Icons.refresh,
+                    size: 17,
+                    color: colors.textSecondary,
+                  ),
+                  tooltip: l10n.dockRefreshTooltip,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(3),
+                  constraints: const BoxConstraints(),
+                  onPressed: () => viewModel.refreshComfyUiStatus(),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            viewModel.config.comfyUiBaseUrl,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (status == ComfyUiConnectionStatus.connected && state != null)
+            Text(
+              state.canDrive
+                  ? l10n.comfyBridgeNodeSummary(
+                      state.promptNodeIds.length,
+                      state.resolutionNodeIds.length,
+                      state.paramsNodeIds.length,
+                    )
+                  : l10n.comfyBridgeNoPanelHint,
+              style: TextStyle(
+                fontSize: 12,
+                color: state.canDrive ? colors.textSecondary : colors.warning,
+              ),
+            )
+          else if (viewModel.comfyLastError != null)
+            Text(
+              viewModel.comfyLastError!,
+              style: TextStyle(fontSize: 12, color: colors.error),
+            ),
         ],
       ),
     );

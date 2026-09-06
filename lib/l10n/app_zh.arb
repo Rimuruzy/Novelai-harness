@@ -1315,5 +1315,34 @@
   "promptTokenBreakdownUcPreset": "UC 预设",
   "promptTokenBreakdownCharacterNegatives": "角色负面",
   "promptTokenFeatureLimited": "超过文字渲染支持上限，文字渲染功能受限",
-  "promptTokenOverLimit": "超过模型 Token 上限，超出部分将被截断"
+  "promptTokenOverLimit": "超过模型 Token 上限，超出部分将被截断",
+
+  "vmComfyPushing": "正在向 ComfyUI 推送参数…",
+  "vmComfyBridgeUnreachable": "无法连接 ComfyUI Bridge：{error}",
+  "@vmComfyBridgeUnreachable": {"placeholders": {"error": {"type": "String"}}},
+  "vmComfyNoPromptPanel": "ComfyUI 工作流中未发现 Prompt Panel 节点，请先在画布添加",
+  "vmComfyQueued": "已排队，等待 ComfyUI 出图…",
+  "vmComfyWaitTimeout": "等待出图超时：请确认 ComfyUI 浏览器画布已打开 (排队需前端在线) 且工作流含 AI Image Output 节点",
+  "vmComfyFailed": "ComfyUI 生图失败：{error}",
+  "@vmComfyFailed": {"placeholders": {"error": {"type": "String"}}},
+
+  "comfyStatusConnected": "ComfyUI 已连接",
+  "comfyStatusConnecting": "正在连接 ComfyUI…",
+  "comfyStatusDisconnected": "ComfyUI 未连接",
+  "comfyBridgeNodeSummary": "提示词面板 {prompts} · 分辨率 {resolutions} · 参数面板 {params}",
+  "@comfyBridgeNodeSummary": {"placeholders": {"prompts": {"type": "int"}, "resolutions": {"type": "int"}, "params": {"type": "int"}}},
+  "comfyBackendNovelAI": "NovelAI",
+  "comfyBackendComfyUI": "ComfyUI",
+  "comfyBridgeNoPanelHint": "工作流缺少 Prompt Panel 节点；需安装 PromptToolkit 插件并在 ComfyUI 画布中添加节点后保持浏览器画布打开",
+
+  "settingsSectionComfy": "ComfyUI 模式",
+  "settingsComfyEnabledTitle": "启用 ComfyUI 模式",
+  "settingsComfyEnabledDesc": "经 PromptToolkit AI Bridge 驱动本地或局域网 ComfyUI 生图；此模式下质量词与 UC 预设及 Token 上限计算均不生效",
+  "settingsComfyBaseUrlTitle": "服务地址",
+  "settingsComfyBaseUrlHint": "http://192.168.1.20:8188",
+  "settingsComfyNodeIdsTitle": "目标节点 ID (可选)",
+  "settingsComfyNodeIdsHint": "留空自动使用工作流中第一个注册节点",
+  "settingsComfyPromptNodeHint": "Prompt Panel 节点 ID",
+  "settingsComfyResolutionNodeHint": "Resolution Master 节点 ID",
+  "settingsComfyParamsNodeHint": "Params Panel 节点 ID"
 }
