@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../models/nai_special_tags.dart';
 import '../models/tag_models.dart';
 import 'prompt_library_service.dart';
 import 'isolated_compute.dart';
@@ -19,6 +20,9 @@ class _DictEntry {
   final List<String> aliases;
   final DanbooruTagCategory category;
 
+  /// NovelAI 官方专属词条的分组胶囊文案 (Danbooru 词条为 null)
+  final String? specialLabel;
+
   const _DictEntry({
     required this.tag,
     required this.tagLower,
@@ -28,6 +32,7 @@ class _DictEntry {
     this.zhLower = '',
     this.aliases = const [],
     this.category = DanbooruTagCategory.general,
+    this.specialLabel,
   });
 }
 
@@ -116,6 +121,41 @@ DanbooruTagCategory _inferCategory(String tag) {
   return DanbooruTagCategory.general;
 }
 
+// ==================== NovelAI 官方专属词条 ====================
+//
+// 官方文档 (docs.novelai.net/en/image/tags) 定义的 Quality / Aesthetic /
+// Complexity / Dataset / Alpha / Renamed / Other 专属标签在 Danbooru 词库中
+// 完全不存在，此处转成与 Danbooru 同构的词条参与统一扫描，使标签补全、
+// 灵感库、提示词高亮与 Agent 离线检索一次性全部获得官方专属词。
+
+/// NovelAI 专属词条的词典视图 (年代标签 year XXXX 为动态合成，不在此列)
+final List<_DictEntry> _naiSpecialEntries = [
+  for (final t in kNaiSpecialTags)
+    _DictEntry(
+      tag: t.tag,
+      tagLower: t.tag,
+      tagSpaced: t.tag,
+      count: 0,
+      zh: t.displayZh,
+      zhLower: t.displayZh.toLowerCase(),
+      aliases: t.aliases,
+      category: t.category,
+      specialLabel: t.group.pillLabel,
+    ),
+];
+
+/// 官方专属词条的等效热度加权
+///
+/// 专属词条在 Danbooru 词库里没有热度计数 (postCount = 0)，不加权就会被任何
+/// 有热度的同档位词条挤到末尾 (输入 best 时 best quality 会排在 bestiality 之后)。
+/// 此处按「等效 10 万热度」加权 (log(1e5) × 8 ≈ 92)：胜过冷门 Danbooru 词条，
+/// 但仍让位于 long hair (616 万) / looking at viewer (487 万) 这类超高频词，
+/// 因此短前缀查询的热度排序不会被破坏 (加权只影响总分，不影响展示计数)。
+const double _kNaiSpecialBoost = 92.0;
+
+/// 年代标签候选下界 (上界取当前年份，任意年份官方均可用)
+const int _kOldestYearTag = 1900;
+
 // ==================== 后台检索 Isolate (阶段2 性能治理) ====================
 //
 // 32 万词条的线性扫描逐次检索不再占用 UI 主线程：常驻 worker isolate
@@ -188,78 +228,202 @@ List<TagSuggestion> _scanEntries(
 
   final matches = <TagSuggestion>[];
 
-  for (final e in entries) {
-    if (category != null && e.category != category) continue;
+  // Danbooru 词库与 NovelAI 官方专属词条同构扫描：专属词条恒定参与，
+  // 因此词库未加载/为空时依然能补全 quality/aesthetic/complexity 等官方词
+  for (final batch in [entries, _naiSpecialEntries]) {
+    final isSpecial = identical(batch, _naiSpecialEntries);
 
-    final tagUnder = e.tagLower;
-    final tagSpace = e.tagSpaced;
-    final zh = e.zhLower;
+    for (final e in batch) {
+      if (category != null && e.category != category) continue;
 
-    double score = 0.0;
-    String? matchedAlias;
+      final tagUnder = e.tagLower;
+      final tagSpace = e.tagSpaced;
+      final zh = e.zhLower;
 
-    if (isCjk) {
-      // 中文查询模式
-      if (zh.startsWith(rawQ)) {
-        score = 1000.0;
-      } else if (zh.contains(rawQ)) {
-        score = 600.0;
-      }
-    } else {
-      // 英文 / 拼音 / 别名查询模式
-      if (tagUnder == qUnderscore || tagSpace == qSpace) {
-        score = 1500.0; // 完全精确匹配
-      } else if (tagUnder.startsWith(qUnderscore) ||
-          tagSpace.startsWith(qSpace)) {
-        score = 1000.0; // 前缀命中
-      } else if (tagUnder.contains(qUnderscore) || tagSpace.contains(qSpace)) {
-        score = 400.0; // 包含命中
-      } else if (zh.contains(rawQ)) {
-        score = 300.0; // 包含匹配中文
+      double score = 0.0;
+      String? matchedAlias;
+
+      if (isCjk) {
+        // 中文查询模式
+        if (zh.startsWith(rawQ)) {
+          score = 1000.0;
+        } else if (zh.contains(rawQ)) {
+          score = 600.0;
+        }
       } else {
-        // 别名匹配
-        for (final a in e.aliases) {
-          final aLower = a.toLowerCase();
-          if (aLower.startsWith(rawQ) || aLower.startsWith(qUnderscore)) {
-            score = 800.0;
-            matchedAlias = a;
-            break;
-          } else if (aLower.contains(rawQ)) {
-            score = 250.0;
-            matchedAlias = a;
-            break;
+        // 英文 / 拼音 / 别名查询模式
+        if (tagUnder == qUnderscore || tagSpace == qSpace) {
+          score = 1500.0; // 完全精确匹配
+        } else if (tagUnder.startsWith(qUnderscore) ||
+            tagSpace.startsWith(qSpace)) {
+          score = 1000.0; // 前缀命中
+        } else if (tagUnder.contains(qUnderscore) ||
+            tagSpace.contains(qSpace)) {
+          score = 400.0; // 包含命中
+        } else if (isSpecial) {
+          // 官方专属词条：别名 (改名标签的旧写法) 优先于中文释义包含匹配，
+          // 使 tachi-e / eyepatch bikini 等旧语法以别名档位 (800) 补全到新词条；
+          // 别名档位低于中文包含匹配时仍取中文分数，不做降级
+          final aliasHit = _matchAlias(e.aliases, rawQ, qUnderscore);
+          final zhHit = zh.contains(rawQ) ? 300.0 : 0.0;
+          if (aliasHit != null && aliasHit.$2 >= zhHit) {
+            matchedAlias = aliasHit.$1;
+            score = aliasHit.$2;
+          } else {
+            score = zhHit;
+          }
+        } else if (zh.contains(rawQ)) {
+          score = 300.0; // 包含匹配中文
+        } else {
+          // 别名匹配
+          final aliasHit = _matchAlias(e.aliases, rawQ, qUnderscore);
+          if (aliasHit != null) {
+            matchedAlias = aliasHit.$1;
+            score = aliasHit.$2;
           }
         }
       }
-    }
 
-    if (score > 0) {
-      // 叠加基于热度的对数提升分数
-      final popularityBoost = e.count > 0 ? (math.log(e.count + 1) * 8.0) : 0.0;
-      final totalScore = score + popularityBoost;
+      if (score > 0) {
+        // 叠加基于热度的对数提升分数 + 官方专属词条等效热度加权
+        final popularityBoost = e.count > 0
+            ? (math.log(e.count + 1) * 8.0)
+            : 0.0;
+        final totalScore =
+            score + popularityBoost + (isSpecial ? _kNaiSpecialBoost : 0.0);
 
-      matches.add(
-        TagSuggestion(
-          tag: tagSpace,
-          category: e.category,
-          postCount: e.count,
-          translation: e.zh,
-          aliases: e.aliases,
-          matchedAlias: matchedAlias,
-          score: totalScore,
-        ),
-      );
+        matches.add(
+          TagSuggestion(
+            tag: tagSpace,
+            category: e.category,
+            postCount: e.count,
+            translation: e.zh,
+            aliases: e.aliases,
+            matchedAlias: matchedAlias,
+            score: totalScore,
+            customCategoryLabel: e.specialLabel,
+          ),
+        );
+      }
     }
   }
 
-  matches.sort((a, b) => b.score.compareTo(a.score));
-  return matches.take(limit).toList();
+  final results = _dedupeSuggestions(matches);
+  results.sort((a, b) => b.score.compareTo(a.score));
+  return results.take(limit).toList();
+}
+
+/// 别名匹配：返回命中别名与其档位分数 (前缀命中 800 / 包含命中 250)
+(String, double)? _matchAlias(
+  List<String> aliases,
+  String rawQ,
+  String qUnderscore,
+) {
+  for (final a in aliases) {
+    final aLower = a.toLowerCase();
+    if (aLower.startsWith(rawQ) || aLower.startsWith(qUnderscore)) {
+      return (a, 800.0);
+    } else if (aLower.contains(rawQ)) {
+      return (a, 250.0);
+    }
+  }
+  return null;
+}
+
+/// 同名词条去重 (Danbooru 词库 / NovelAI 专属清单 / 年代合成 / 词组合)
+///
+/// `transparent background`、`alpha transparency` 等词条两侧都有：保留携带官方
+/// 分组胶囊与模型可用范围说明的专属词条，并合并 Danbooru 侧的热度计数与别名。
+List<TagSuggestion> _dedupeSuggestions(List<TagSuggestion> matches) {
+  final byTag = <String, TagSuggestion>{};
+  for (final m in matches) {
+    final prev = byTag[m.tag];
+    byTag[m.tag] = prev == null ? m : _mergeSuggestions(prev, m);
+  }
+  return byTag.values.toList();
+}
+
+TagSuggestion _mergeSuggestions(TagSuggestion a, TagSuggestion b) {
+  final keep = a.customCategoryLabel != null ? a : b;
+  final other = identical(keep, a) ? b : a;
+  return TagSuggestion(
+    tag: keep.tag,
+    category: keep.category,
+    postCount: math.max(keep.postCount, other.postCount),
+    translation: (keep.translation?.isNotEmpty ?? false)
+        ? keep.translation
+        : other.translation,
+    aliases: keep.aliases.isNotEmpty ? keep.aliases : other.aliases,
+    matchedAlias: keep.matchedAlias ?? other.matchedAlias,
+    score: math.max(keep.score, other.score),
+    insertText: keep.insertText ?? other.insertText,
+    customCategoryLabel: keep.customCategoryLabel ?? other.customCategoryLabel,
+    isPromptCombo: keep.isPromptCombo || other.isPromptCombo,
+  );
+}
+
+/// 年代标签 (`year XXXX`) 动态合成
+///
+/// 官方文档：XXXX 可为任意年份，词典无法穷举，故按查询前缀实时生成候选并
+/// 近年优先。支持 `year` / `year 20` / `year 2014` / `year_2014` 与中文 `年*`。
+List<TagSuggestion> _yearTagMatches(
+  String rawQ,
+  int limit, {
+  DanbooruTagCategory? category,
+}) {
+  if (category != null && category != DanbooruTagCategory.meta) {
+    return const [];
+  }
+
+  final q = rawQ.replaceAll('_', ' ').trim();
+  final match = RegExp(r'^year\s*(\d{0,4})$').firstMatch(q);
+  final String digits;
+  if (match != null) {
+    digits = match.group(1) ?? '';
+  } else if (q.startsWith('年')) {
+    digits = ''; // 中文「年 / 年代 / 年份」
+  } else {
+    return const [];
+  }
+
+  if (digits.length == 4) return [_yearSuggestion(digits, exact: true)];
+
+  final results = <TagSuggestion>[];
+  for (
+    var year = DateTime.now().year;
+    year >= _kOldestYearTag && results.length < limit;
+    year--
+  ) {
+    if ('$year'.startsWith(digits)) {
+      results.add(_yearSuggestion('$year', exact: false));
+    }
+  }
+  return results;
+}
+
+/// 单条年代建议：[exact] 为真表示查询已给出完整四位年份 (精确档)，
+/// 否则仅是 `year` / `year 20` 这类前缀查询 (前缀档，不越级抬高)
+TagSuggestion _yearSuggestion(String year, {required bool exact}) {
+  final tag = 'year $year';
+  return TagSuggestion(
+    tag: tag,
+    category: DanbooruTagCategory.meta,
+    customCategoryLabel: NaiSpecialTagGroup.year.pillLabel,
+    translation: naiYearTagTranslation(tag),
+    // 同档位内以年份新近度决定先后
+    score:
+        (exact ? 1500.0 : 1000.0) + _kNaiSpecialBoost + int.parse(year) * 0.001,
+  );
 }
 
 /// Danbooru 本地离线标签词典服务 (单例模式)
 class TagDictionaryService {
   static final TagDictionaryService instance = TagDictionaryService._();
-  TagDictionaryService._();
+
+  TagDictionaryService._() {
+    // 官方专属词条先入反查表，词库加载/热替换后再覆盖一次
+    _seedSpecialLookups();
+  }
 
   /// 后台检索 Isolate 开关：
   /// 生产环境默认开启 (32 万条扫描不占 UI 主线程)；
@@ -341,18 +505,32 @@ class TagDictionaryService {
       }
       _tagToCat[cleanTag] = entry.category;
     }
+    // NovelAI 官方专属词条覆盖同名 Danbooru 释义 (携带官方语义与模型可用范围)
+    _seedSpecialLookups();
+  }
+
+  /// 将官方专属标签写入反查表 (提示词高亮的中文释义与分类着色)
+  void _seedSpecialLookups() {
+    for (final t in kNaiSpecialTags) {
+      final key = t.tag.toLowerCase();
+      _tagToZh[key] = t.displayZh;
+      _tagToCat[key] = t.category;
+    }
   }
 
   /// 快速查询标签中文释义
   String? translationOf(String tagName) {
     final key = tagName.trim().replaceAll('_', ' ').toLowerCase();
-    return _tagToZh[key];
+    // 年代标签 (year XXXX) 为动态词条，不入反查表
+    return _tagToZh[key] ?? naiYearTagTranslation(key);
   }
 
   /// 快速查询标签分类
   DanbooruTagCategory? categoryOf(String tagName) {
     final key = tagName.trim().replaceAll('_', ' ').toLowerCase();
-    return _tagToCat[key];
+    final hit = _tagToCat[key];
+    if (hit != null) return hit;
+    return parseNaiYearTag(key) == null ? null : DanbooruTagCategory.meta;
   }
 
   // ==================== 后台检索 worker 管理 ====================
@@ -471,10 +649,25 @@ class TagDictionaryService {
         ? PromptLibraryService.instance.searchAsSuggestions(query, limit: 5)
         : const <TagSuggestion>[];
 
+    // 2. 年代标签 (year XXXX) 动态合成：官方任意年份可用，词典无法穷举
+    final yearMatches = _yearTagMatches(rawQ, limit, category: category);
+
     await ensureLoaded();
     final entries = _entries;
     if (entries == null || entries.isEmpty) {
-      return comboMatches.take(limit).toList();
+      // 词库缺失/为空时仍扫描官方专属清单 (传空词条表即可命中专属词)
+      final specialMatches = _scanEntries(
+        const [],
+        rawQ,
+        category: category,
+        limit: limit,
+      );
+      final fallback = _dedupeSuggestions([
+        ...comboMatches,
+        ...yearMatches,
+        ...specialMatches,
+      ])..sort((a, b) => b.score.compareTo(a.score));
+      return fallback.take(limit).toList();
     }
 
     final cacheKey =
@@ -482,14 +675,18 @@ class TagDictionaryService {
     final hit = _queryCache[cacheKey];
     if (hit != null) return hit;
 
-    // 2. 32 万词条线性扫描优先在后台 isolate 执行 (不占 UI 主线程)；
+    // 3. 32 万词条线性扫描优先在后台 isolate 执行 (不占 UI 主线程)；
     //    worker 不可用时主线程同步兑底 (行为与旧实现完全一致)
     final dictMatches =
         await _searchViaWorker(rawQ, category, limit) ??
         _scanEntries(entries, rawQ, category: category, limit: limit);
 
-    // 所有条目 (词库 + Danbooru 词典) 参与公平打分排序
-    final matches = <TagSuggestion>[...comboMatches, ...dictMatches];
+    // 所有条目 (词组合 + 年代合成 + Danbooru 词典 + 官方专属词) 参与公平打分排序
+    final matches = _dedupeSuggestions([
+      ...comboMatches,
+      ...yearMatches,
+      ...dictMatches,
+    ]);
     matches.sort((a, b) => b.score.compareTo(a.score));
     final results = matches.take(limit).toList();
 

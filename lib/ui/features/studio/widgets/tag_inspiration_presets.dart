@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../data/models/nai_special_tags.dart';
 
 /// 预设灵感分类与精选标签 (标签灵感库数据源)
 class TagInspirationGroup {
@@ -96,4 +97,35 @@ const List<TagInspirationGroup> kTagInspirationPresets = [
     ('cherry blossoms', '落樱纷飞'),
     ('cityscape', '都市街景'),
   ]),
+];
+
+/// 官方专属标签分组图标 (数据层保持 Flutter 无关，图标在 UI 层映射)
+const Map<NaiSpecialTagGroup, IconData> _kNaiGroupIcons = {
+  NaiSpecialTagGroup.quality: Icons.workspace_premium_outlined,
+  NaiSpecialTagGroup.aesthetic: Icons.auto_awesome_outlined,
+  NaiSpecialTagGroup.complexity: Icons.layers_outlined,
+  NaiSpecialTagGroup.year: Icons.calendar_month_outlined,
+  NaiSpecialTagGroup.dataset: Icons.dataset_outlined,
+  NaiSpecialTagGroup.alpha: Icons.opacity_outlined,
+  NaiSpecialTagGroup.renamed: Icons.swap_horiz_outlined,
+  NaiSpecialTagGroup.other: Icons.category_outlined,
+};
+
+/// 标签灵感库实际渲染的分组清单
+///
+/// NovelAI 官方专属标签按文档分节置顶 (Danbooru 词库完全不含这些词条)，
+/// 其后才是人工维护的通用灵感分类。
+final List<TagInspirationGroup> kTagInspirationGroups = [
+  for (final group in NaiSpecialTagGroup.values)
+    TagInspirationGroup(
+      'NAI·${group.label}',
+      _kNaiGroupIcons[group] ?? Icons.auto_awesome_outlined,
+      [
+        for (final t
+            in kNaiSpecialTagsByGroup[group] ?? const <NaiSpecialTag>[])
+          // 灵感库无别名胶囊，改用 galleryZh 补齐改名标签的旧写法说明
+          (t.tag, t.galleryZh),
+      ],
+    ),
+  ...kTagInspirationPresets,
 ];

@@ -99,6 +99,7 @@ Novelai-harness/
 │   │   │   ├── prompt_library_models.dart     # 词组合预设分类常量与 PromptComboEntry 实体
 │   │   │   ├── llm_models.dart                # LLM 供应商、模型卡片、思考参数格式与图像输出能力
 │   │   │   ├── tag_models.dart                 # Danbooru 标签分类、联想条目与 NovelAI Token 结构
+│   │   │   ├── nai_special_tags.dart           # NovelAI 官方专属标签事实源 (画质/美学/复杂度/数据集/透明通道/改名/其他 + 年代样例)
 │   │   │   ├── image_annotation.dart           # 图像批注模型 (rect 选区/point 图钉/global，归一化坐标+调色板)
 │   │   │   ├── canvas_board_models.dart        # 自由大画布节点模型 (图片卡/便利贴/连线/视口矩阵，含 JSON 序列化)
 │   │   │   └── image_metadata_models.dart      # 图像元数据模型与水印配置实体 (WatermarkConfig)
@@ -109,7 +110,7 @@ Novelai-harness/
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
 │   │   │   ├── image_edit_service.dart         # 外部绘图模型整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图)
 │   │   │   ├── image_metadata_service.dart     # PNG Chunks 与 Alpha LSB 隐写读取、元数据脱敏抹除与注入
-│   │   │   ├── tag_dictionary_service.dart     # 32万+ Danbooru 离线词库检索、多模态反查与缓存服务 (后台 Isolate)
+│   │   │   ├── tag_dictionary_service.dart     # 32万+ Danbooru 离线词库检索、官方专属词同构合并、年代标签动态合成、多模态反查与缓存服务 (后台 Isolate)
 │   │   │   ├── prompt_ast_engine.dart          # NovelAI 提示词 AST 分词、权重增减、注释禁用与 SD 语法转换引擎
 │   │   │   ├── prompt_library_service.dart     # 词组合预设库本地持久化、检索与 JSON 导入导出
 │   │   │   ├── config_service.dart             # 本地配置与 ~/.pi/agent/novelai.json 自动识别与内置预设同步
@@ -187,7 +188,7 @@ Novelai-harness/
 │                   ├── tag_autocomplete_card.dart   # Danbooru 浮动补全建议卡片 (分类色彩/中英双语/热度计数)
 │                   ├── tag_suggestion_tile.dart  # 标签分类胶囊与热度计数展示小组件
 │                   ├── tag_browser_dialog.dart  # Danbooru 标签灵感库弹窗 (精选分类与高频词速查)
-│                   ├── tag_inspiration_presets.dart # 标签灵感库内置精选数据源
+│                   ├── tag_inspiration_presets.dart # 标签灵感库数据源 (官方专属分组置顶 + 内置精选分类)
 │                   ├── fixed_affixes_panel.dart # 固定词缀编辑面板 (前缀/后缀独立拖拽调高)
 │                   ├── generate_dock.dart       # 底部操作坞：账号等级/体力池状态/免点标识 + 动态主生成按钮
 │                   ├── resolution_pad_picker.dart # 2D 可视化分辨率画板与常用比例预设
@@ -402,3 +403,35 @@ classDiagram
 
 - **`_StudioCore`**：统一定义所有私有核心状态字段与数据访问契约；
 - **各领域 Mixin**：将布局、Harness 调度、生图流水线、修复处理、对话与流式节流、会话分支、角色管理、斜杠指令、词库、大画布批注等逻辑高内聚拆分到各个独立分部中，保持各业务职责极其明确。
+
+---
+
+### 3.7 标签补全多源合并管线 (Tag Suggestion Pipeline)
+
+标签自动补全、标签灵感库、提示词高亮与 Agent 离线标签检索均汇聚到 `TagDictionaryService.search()` 单一漏斗，内部按四个数据源公平打分合并：
+
+```mermaid
+graph TD
+    Query["查询词 (光标前活跃片段)"] --> Scan["_scanEntries (后台常驻 Isolate 线性扫描)"]
+    Scan --> Danbooru["① Danbooru 离线词库 32万+ 条<br/>assets/danbooru.tsv (count<10 已过滤)"]
+    Scan --> Special["② NovelAI 官方专属词条<br/>nai_special_tags.dart (与 Danbooru 同构)"]
+    Query --> Year["③ 年代标签动态合成<br/>year XXXX (主线程，任意年份)"]
+    Query --> Combo["④ 词组合预设库<br/>PromptLibraryService (category==null 时)"]
+    Query --> Online["⑤ 在线语义检索 (可选注入)<br/>DanbooruSearchService"]
+    Danbooru --> Dedup["_dedupeSuggestions 同名去重<br/>(官方词条胜出 + 热度/别名合并)"]
+    Special --> Dedup
+    Year --> Dedup
+    Combo --> Dedup
+    Dedup --> Sort["总分降序 + take(limit)"]
+    Online --> Merge["UI 层二次归并"]
+    Sort --> Merge
+    Merge --> LRU["查询结果 LRU 缓存 (500 条上限整表清空)"]
+```
+
+- **官方专属词条同构合并**：`nai_special_tags.dart` 按官方文档 (docs.novelai.net/en/image/tags) 分节维护 Quality / Aesthetic / Complexity / Dataset / Alpha / Renamed / Other 七组词条 (含中文释义、模型可用范围、改名标签旧写法别名)，在解析层转成与 Danbooru 同构的 `_DictEntry` 参与**同一次扫描**。因此词条恒定可用：词库未加载、资产缺失或热替换为空时依然能补全官方专属词。
+- **等效热度加权 (`_kNaiSpecialBoost = 92`)**：专属词条没有 Danbooru 热度计数 (`postCount = 0`)，若不加权会被任何有热度的同档位词条挤到末尾 (输入 `best` 时 `best quality` 排在 `bestiality` 之后)。按「等效 10 万热度」(`log(1e5) × 8 ≈ 92`) 加权后：胜过冷门 Danbooru 词条，但仍让位于 `long hair` (616 万) 这类超高频词——加权只影响总分，不影响展示计数，短前缀查询的热度排序不被破坏。
+- **改名标签别名优先**：官方因 `|` 是提示词混合分隔符而改名的词条 (`tachi-e` → `character image`、`eyepatch bikini` → `square bikini`、`v` → `peace sign` 等)，旧写法走 `aliases`；专属词条的别名匹配**先于**中文释义包含匹配判定，使旧语法以别名档位 (800) 而非中文包含档位 (300) 命中新词条，同时保留 `matchedAlias` 供补全卡展示「别名: tachi-e」。Danbooru 侧打分顺序保持原样不变。
+- **年代标签动态合成**：官方 `year XXXX` 可填任意年份，词典无法穷举，故不入静态清单，由主线程按查询前缀实时合成 (当前年份倒序至 1900)；四位完整年份走精确档、部分前缀走前缀档，不越级抬高。`translationOf` / `categoryOf` 对年代标签按需还原，因此提示词高亮无需词条落表。
+- **同名去重与字段合并**：`transparent background`、`alpha transparency`、`visual novel cg` 等词条 Danbooru 与官方两侧都存在，去重时保留携带官方分组胶囊 (`NAI·画质` 等) 与模型可用范围说明的专属词条，并合并 Danbooru 侧的热度计数、别名与更高分值。
+- **反查表覆盖**：专属词条在词库加载与热替换后写入 `_tagToZh` / `_tagToCat` 并覆盖同名 Danbooru 释义，使 `rich_prompt_text_controller` 的分类着色与中文释义对官方专属词同样生效；服务构造时先行播种，保证词库加载前也能高亮。
+- **UI 分组呈现**：标签灵感库 (`tag_inspiration_presets.dart`) 以 `kTagInspirationGroups` 将官方专属词条按文档分节置顶 (`NAI·画质` / `NAI·美学` / … / `NAI·年代`)，其后才是人工维护的通用灵感分类；灵感库无别名胶囊，故改用 `galleryZh` 补齐改名标签的旧写法说明，补全卡则用 `displayZh` 避免与别名胶囊重复。

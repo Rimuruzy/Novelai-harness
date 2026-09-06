@@ -211,9 +211,9 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
           ),
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: kTagInspirationPresets.length,
+            itemCount: kTagInspirationGroups.length,
             itemBuilder: (context, index) {
-              final group = kTagInspirationPresets[index];
+              final group = kTagInspirationGroups[index];
               final isSelected = index == _activeCategoryIndex;
 
               return InkWell(
@@ -269,7 +269,7 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                kTagInspirationPresets[_activeCategoryIndex].title,
+                kTagInspirationGroups[_activeCategoryIndex].title,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -282,7 +282,7 @@ class _TagBrowserDialogState extends State<TagBrowserDialog> {
                 runSpacing: 8,
                 children: [
                   for (final (tag, zh)
-                      in kTagInspirationPresets[_activeCategoryIndex].tags)
+                      in kTagInspirationGroups[_activeCategoryIndex].tags)
                     _TagChipItem(
                       tag: tag,
                       zh: widget.showTranslation ? zh : '',

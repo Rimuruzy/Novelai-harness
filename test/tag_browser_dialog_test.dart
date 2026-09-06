@@ -56,14 +56,17 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
 
+      // 首组为 NovelAI 官方专属标签 (按文档分节置顶；侧栏与右侧标题各一处)
+      expect(find.text('NAI·画质'), findsNWidgets(2));
+
       // 点击标签触发选择并显示 SnackBar
-      final tagChip = find.text('masterpiece');
+      final tagChip = find.text('best quality');
       expect(tagChip, findsOneWidget);
       await tester.tap(tagChip);
       await tester.pump();
 
-      expect(selectedTag, 'masterpiece');
-      expect(find.textContaining('已添加标签: masterpiece'), findsOneWidget);
+      expect(selectedTag, 'best quality');
+      expect(find.textContaining('已添加标签: best quality'), findsOneWidget);
     });
 
     testWidgets('Renders English strings when locale is en', (tester) async {
@@ -109,14 +112,17 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
 
+      // 首组为 NovelAI 官方专属标签 (按文档分节置顶；侧栏与右侧标题各一处)
+      expect(find.text('NAI·画质'), findsNWidgets(2));
+
       // 点击标签触发选择并显示 SnackBar
-      final tagChip = find.text('masterpiece');
+      final tagChip = find.text('best quality');
       expect(tagChip, findsOneWidget);
       await tester.tap(tagChip);
       await tester.pump();
 
-      expect(selectedTag, 'masterpiece');
-      expect(find.textContaining('Added tag: masterpiece'), findsOneWidget);
+      expect(selectedTag, 'best quality');
+      expect(find.textContaining('Added tag: best quality'), findsOneWidget);
     });
   });
 }
