@@ -133,7 +133,7 @@ void main() {
 
     final file = File('${tempDir.path}/usage-ledger.json');
     final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-    expect(data['version'], equals(1));
+    expect(data['version'], equals(2));
 
     final days = data['days'] as Map<String, dynamic>;
     expect(days.length, equals(1));
@@ -146,6 +146,49 @@ void main() {
     final keys = data['keys'] as Map<String, dynamic>;
     expect(keys.containsKey('usage_struct'), isTrue);
   });
+
+  test(
+    'v1 ledger migrates cached input once and retains missing reporting state',
+    () async {
+      final file = File('${tempDir.path}/usage-ledger.json');
+      final legacy = {
+        'version': 1,
+        'days': <String, dynamic>{},
+        'keys': {
+          'old': {
+            'day': '2026-09-06',
+            'provider': 'p',
+            'model': 'm',
+            'usage': {
+              'input': 1000,
+              'output': 50,
+              'cacheRead': 600,
+              'cacheWrite': 0,
+            },
+          },
+        },
+      };
+      file.writeAsStringSync(jsonEncode(legacy));
+      final migrated = UsageLedgerService();
+      await migrated.init(baseDir: tempDir.path);
+      expect(migrated.aggregate(BillPeriod.all).usage.total, 1050);
+      expect(jsonDecode(file.readAsStringSync())['version'], 1);
+      migrated.record(
+        key: 'new',
+        provider: 'p',
+        model: 'm',
+        usage: const TokenUsage(input: 100),
+      );
+      final reloaded = UsageLedgerService();
+      await reloaded.init(baseDir: tempDir.path);
+      final usage = reloaded.aggregate(BillPeriod.all).usage;
+      expect(usage.total, 1150);
+      expect(usage.input, 500);
+      expect(usage.cacheRead, 600);
+      expect(usage.cacheReadReported, isFalse);
+      expect(jsonDecode(file.readAsStringSync())['version'], 2);
+    },
+  );
 
   test('formatTokens renders K/M/B units', () {
     expect(UsageLedgerService.formatTokens(999), equals('999'));

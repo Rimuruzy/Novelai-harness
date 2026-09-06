@@ -29,15 +29,20 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
   /// 缓存命中率单元格文案 (无数据时显示 -)
   String _hitRateLabel(TokenUsage usage) {
     final rate = usage.cacheHitRate;
-    return rate == null ? '-' : '${(rate * 100).toStringAsFixed(1)}%';
+    if (rate != null) return '${(rate * 100).toStringAsFixed(1)}%';
+    if (usage.totalInput == 0) return '-';
+    return usage.cacheRead > 0
+        ? context.l10n.cacheUsagePartial
+        : context.l10n.cacheUsageUnreported;
   }
 
-  String _periodLabel(AppLocalizations l10n, BillPeriod period) => switch (period) {
-    BillPeriod.today => l10n.billPeriodToday,
-    BillPeriod.last7d => l10n.billPeriodLast7Days,
-    BillPeriod.last30d => l10n.billPeriodLast30Days,
-    BillPeriod.all => l10n.billPeriodAll,
-  };
+  String _periodLabel(AppLocalizations l10n, BillPeriod period) =>
+      switch (period) {
+        BillPeriod.today => l10n.billPeriodToday,
+        BillPeriod.last7d => l10n.billPeriodLast7Days,
+        BillPeriod.last30d => l10n.billPeriodLast30Days,
+        BillPeriod.all => l10n.billPeriodAll,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +165,7 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
             [
               l10n.billTableHeaderModel,
               l10n.billTableHeaderRequests,
-              l10n.billTableHeaderInput,
+              l10n.cacheUsageInputUncached,
               l10n.billTableHeaderOutput,
               l10n.billTableHeaderCacheRead,
               l10n.billTableHeaderHitRate,
@@ -175,7 +180,9 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
               model.requests.toString(),
               fmt(model.usage.input),
               fmt(model.usage.output),
-              fmt(model.usage.cacheRead),
+              model.usage.cacheReadReported || model.usage.cacheRead > 0
+                  ? fmt(model.usage.cacheRead)
+                  : '-',
               _hitRateLabel(model.usage),
               fmt(model.usage.total),
             ]),
@@ -185,7 +192,9 @@ class _BillSettingsTabState extends State<BillSettingsTab> {
               summary.requests.toString(),
               fmt(summary.usage.input),
               fmt(summary.usage.output),
-              fmt(summary.usage.cacheRead),
+              summary.usage.cacheReadReported || summary.usage.cacheRead > 0
+                  ? fmt(summary.usage.cacheRead)
+                  : '-',
               _hitRateLabel(summary.usage),
               fmt(summary.usage.total),
             ],

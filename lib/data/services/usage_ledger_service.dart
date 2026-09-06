@@ -41,7 +41,7 @@ class BillSummary {
 /// 每次 assistant 响应完成时记录一条，按 key 去重；按 天 -> 供应商 -> 模型
 /// 三层聚合存储，支持今天 / 近 7 天 / 近 30 天 / 全部四种周期汇总。
 class UsageLedgerService {
-  static const int _version = 1;
+  static const int _version = 2;
 
   File? _ledgerFile;
 
@@ -188,8 +188,11 @@ class UsageLedgerService {
     try {
       final decoded = jsonDecode(file.readAsStringSync());
       if (decoded is Map<String, dynamic>) {
+        if ((decoded['version'] as num? ?? 1) < 2) {
+          _migrateLegacyUsage(decoded);
+        }
         return {
-          'version': decoded['version'] ?? _version,
+          'version': _version,
           'days': decoded['days'] ?? <String, dynamic>{},
           'keys': decoded['keys'] ?? <String, dynamic>{},
         };
@@ -200,6 +203,19 @@ class UsageLedgerService {
       'days': <String, dynamic>{},
       'keys': <String, dynamic>{},
     };
+  }
+
+  /// 本应用 v1 账本的 input 含缓存。只迁移内存，下一次正常记账才原子落盘。
+  void _migrateLegacyUsage(Map<String, dynamic> node) {
+    for (final entry in node.entries.toList()) {
+      final value = entry.value;
+      if (value is! Map<String, dynamic>) continue;
+      if (value.containsKey('input') && value.containsKey('cacheRead')) {
+        node[entry.key] = TokenUsage.fromLegacyAppJson(value).toJson();
+      } else {
+        _migrateLegacyUsage(value);
+      }
+    }
   }
 
   void _persist() {

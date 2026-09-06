@@ -127,6 +127,9 @@ String? seedColorText(int? argb) {
 class AppConfig {
   // NovelAI 设置
   final String novelAiKey;
+
+  /// AnySearch 网络搜索 API Key (可选，空 = 匿名访问限流更低)
+  final String anySearchApiKey;
   final NaiModel defaultModel;
   final NaiSampler defaultSampler;
   final NoiseSchedule defaultNoiseSchedule;
@@ -264,6 +267,7 @@ class AppConfig {
 
   const AppConfig({
     this.novelAiKey = '',
+    this.anySearchApiKey = '',
     this.defaultModel = NaiModel.v5Full,
     this.defaultSampler = NaiSampler.kEuler,
     this.defaultNoiseSchedule = NoiseSchedule.karras,
@@ -316,6 +320,7 @@ class AppConfig {
 
   AppConfig copyWith({
     String? novelAiKey,
+    String? anySearchApiKey,
     NaiModel? defaultModel,
     NaiSampler? defaultSampler,
     NoiseSchedule? defaultNoiseSchedule,
@@ -416,6 +421,7 @@ class AppConfig {
       comfyUiScheduler: comfyUiScheduler ?? this.comfyUiScheduler,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
+      anySearchApiKey: anySearchApiKey ?? this.anySearchApiKey,
       imageEditProviderId: imageEditProviderId ?? this.imageEditProviderId,
       imageEditModelId: imageEditModelId ?? this.imageEditModelId,
       agentMaxTurns: agentMaxTurns ?? this.agentMaxTurns,
@@ -430,6 +436,7 @@ class AppConfig {
 /// 配置持久化与自适应加载服务
 class ConfigService {
   static const String _keyNovelAiKey = 'novelai_key';
+  static const String _keyAnySearchApiKey = 'anysearch_api_key';
   static const String _keyModel = 'novelai_model';
   static const String _keySampler = 'novelai_sampler';
   static const String _keyNoiseSchedule = 'novelai_noise_schedule';
@@ -542,6 +549,7 @@ class ConfigService {
     final prefs = await SharedPreferences.getInstance();
 
     String naiKey = prefs.getString(_keyNovelAiKey) ?? '';
+    final String anySearchKey = prefs.getString(_keyAnySearchApiKey) ?? '';
     String prefix = prefs.getString(_keyPrefix) ?? '';
     String suffix = prefs.getString(_keySuffix) ?? '';
     String negative = prefs.getString(_keyNegative) ?? '';
@@ -775,6 +783,7 @@ class ConfigService {
 
     return AppConfig(
       novelAiKey: naiKey,
+      anySearchApiKey: anySearchKey,
       defaultModel: modelId.isNotEmpty
           ? NaiModel.fromId(modelId)
           : NaiModel.v5Full,
@@ -839,6 +848,7 @@ class ConfigService {
     final prefs = await SharedPreferences.getInstance();
 
     await prefs.setString(_keyNovelAiKey, config.novelAiKey);
+    await prefs.setString(_keyAnySearchApiKey, config.anySearchApiKey);
     await prefs.setString(_keyModel, config.defaultModel.id);
     await prefs.setString(_keySampler, config.defaultSampler.id);
     await prefs.setString(_keyNoiseSchedule, config.defaultNoiseSchedule.id);

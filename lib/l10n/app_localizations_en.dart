@@ -205,6 +205,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Official API token (pst-...) for image generation and stamina sync';
 
   @override
+  String get settingsSectionWebSearch => 'Web Search';
+
+  @override
+  String get settingsAnySearchKeyTitle => 'AnySearch API Key';
+
+  @override
+  String get settingsAnySearchKeySubtitle =>
+      'Optional key for the agent web search tools; anonymous access works with lower rate limits';
+
+  @override
   String get settingsSaveDirTitle => 'Local Storage Directory';
 
   @override
@@ -3175,4 +3185,49 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsComfyParamsNodeHint => 'Params Panel node ID';
+
+  @override
+  String get settingsCacheMode => 'Prompt cache format';
+
+  @override
+  String get settingsCacheModeAuto => 'Automatic';
+
+  @override
+  String get settingsCacheModeOff => 'No cache hints';
+
+  @override
+  String get settingsCacheModeDesc =>
+      'Automatic recognizes direct OpenAI and Anthropic models on OpenRouter only. Confirm proxy compatibility first; omitting hints does not disable automatic upstream caching.';
+
+  @override
+  String get settingsCacheRetention => 'Cache retention';
+
+  @override
+  String get settingsCacheRetentionShort => 'Default';
+
+  @override
+  String get settingsCacheRetentionLong => 'Extended';
+
+  @override
+  String get settingsCacheRetentionDesc =>
+      'Requires endpoint support: OpenAI 24h / Anthropic 1h. Pricing may change.';
+
+  @override
+  String get settingsCacheAffinity => 'Session affinity headers';
+
+  @override
+  String get settingsCacheAffinityOff => 'Do not send';
+
+  @override
+  String get settingsCacheAffinityDesc =>
+      'Enable only when supported by the gateway. Helps route a session to the same cache; hits are not guaranteed.';
+
+  @override
+  String get cacheUsageUnreported => 'Not reported';
+
+  @override
+  String get cacheUsagePartial => 'Partially reported';
+
+  @override
+  String get cacheUsageInputUncached => 'Input (uncached)';
 }

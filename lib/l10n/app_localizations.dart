@@ -476,6 +476,24 @@ abstract class AppLocalizations {
   /// **'官方 API 凭证 (pst-...)，用于图像生成与体力池同步'**
   String get settingsApiKeySubtitle;
 
+  /// No description provided for @settingsSectionWebSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络搜索'**
+  String get settingsSectionWebSearch;
+
+  /// No description provided for @settingsAnySearchKeyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'AnySearch API Key'**
+  String get settingsAnySearchKeyTitle;
+
+  /// No description provided for @settingsAnySearchKeySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'可选，用于 Agent 网页搜索工具；未配置时匿名访问，限流较低'**
+  String get settingsAnySearchKeySubtitle;
+
   /// No description provided for @settingsSaveDirTitle.
   ///
   /// In zh, this message translates to:
@@ -5587,6 +5605,90 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'Params Panel 节点 ID'**
   String get settingsComfyParamsNodeHint;
+
+  /// No description provided for @settingsCacheMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示缓存格式'**
+  String get settingsCacheMode;
+
+  /// No description provided for @settingsCacheModeAuto.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动'**
+  String get settingsCacheModeAuto;
+
+  /// No description provided for @settingsCacheModeOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'不发送缓存提示'**
+  String get settingsCacheModeOff;
+
+  /// No description provided for @settingsCacheModeDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动仅识别 OpenAI 官方及 OpenRouter 的 Anthropic 模型。中转站需确认兼容格式；不发送提示不等于禁用上游自动缓存。'**
+  String get settingsCacheModeDesc;
+
+  /// No description provided for @settingsCacheRetention.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓存保留时间'**
+  String get settingsCacheRetention;
+
+  /// No description provided for @settingsCacheRetentionShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get settingsCacheRetentionShort;
+
+  /// No description provided for @settingsCacheRetentionLong.
+  ///
+  /// In zh, this message translates to:
+  /// **'延长'**
+  String get settingsCacheRetentionLong;
+
+  /// No description provided for @settingsCacheRetentionDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'延长需端点支持：OpenAI 24 小时 / Anthropic 1 小时，可能改变计费。'**
+  String get settingsCacheRetentionDesc;
+
+  /// No description provided for @settingsCacheAffinity.
+  ///
+  /// In zh, this message translates to:
+  /// **'会话亲和请求头'**
+  String get settingsCacheAffinity;
+
+  /// No description provided for @settingsCacheAffinityOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'不发送'**
+  String get settingsCacheAffinityOff;
+
+  /// No description provided for @settingsCacheAffinityDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅在网关支持时启用，帮助同一会话路由至同一缓存；不保证命中。'**
+  String get settingsCacheAffinityDesc;
+
+  /// No description provided for @cacheUsageUnreported.
+  ///
+  /// In zh, this message translates to:
+  /// **'未报告'**
+  String get cacheUsageUnreported;
+
+  /// No description provided for @cacheUsagePartial.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分报告'**
+  String get cacheUsagePartial;
+
+  /// No description provided for @cacheUsageInputUncached.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入（未缓存）'**
+  String get cacheUsageInputUncached;
 }
 
 class _AppLocalizationsDelegate

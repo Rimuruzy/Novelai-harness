@@ -817,7 +817,9 @@ class SessionLogService implements SessionRecorder {
           }
         }
         if (msg['usage'] != null) {
-          usage = TokenUsage.fromJson(msg['usage']);
+          usage = msg['api'] == 'openai-chat'
+              ? TokenUsage.fromLegacyAppJson(msg['usage'])
+              : TokenUsage.fromJson(msg['usage']);
         }
         return AgentMessage(
           id: fallbackId,
@@ -862,10 +864,7 @@ class SessionLogService implements SessionRecorder {
   }
 
   Map<String, dynamic> _usageJson(TokenUsage? u) => {
-    'input': u?.input ?? 0,
-    'output': u?.output ?? 0,
-    'cacheRead': u?.cacheRead ?? 0,
-    'cacheWrite': u?.cacheWrite ?? 0,
+    ...(u ?? const TokenUsage()).toJson(),
     'totalTokens': u?.total ?? 0,
     'cost': {
       'input': 0.0,

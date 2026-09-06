@@ -1,31 +1,38 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-/// Token 用量 (对齐 Pi 的 Usage 结构，cost 由账单服务另行估算)
+/// Pi 用量口径：input 仅含未缓存输入，缓存读写独立计数。
 class TokenUsage {
   final int input;
   final int output;
   final int cacheRead;
   final int cacheWrite;
 
+  /// 所有有输入的请求是否都报告了缓存读数。混合/缺失统计不伪装成 0%。
+  final bool cacheReadReported;
+
   const TokenUsage({
     this.input = 0,
     this.output = 0,
     this.cacheRead = 0,
     this.cacheWrite = 0,
-  });
+    bool? cacheReadReported,
+  }) : cacheReadReported = cacheReadReported ?? (cacheRead > 0);
 
-  int get total => input + output + cacheRead + cacheWrite;
+  int get totalInput => input + cacheRead + cacheWrite;
+  int get total => totalInput + output;
 
-  /// 缓存命中率 (缓存读 / 总输入)。总输入为 0 时返回 null。
-  /// 口径与 pi 的 footer CH 标记一致：cached input / total input。
-  double? get cacheHitRate => input > 0 ? cacheRead / input : null;
+  double? get cacheHitRate =>
+      cacheReadReported && totalInput > 0 ? cacheRead / totalInput : null;
 
   TokenUsage add(TokenUsage other) => TokenUsage(
     input: input + other.input,
     output: output + other.output,
     cacheRead: cacheRead + other.cacheRead,
     cacheWrite: cacheWrite + other.cacheWrite,
+    cacheReadReported:
+        (totalInput == 0 || cacheReadReported) &&
+        (other.totalInput == 0 || other.cacheReadReported),
   );
 
   Map<String, dynamic> toJson() => {
@@ -33,23 +40,63 @@ class TokenUsage {
     'output': output,
     'cacheRead': cacheRead,
     'cacheWrite': cacheWrite,
+    'cacheReadReported': cacheReadReported,
+    'inputAccounting': 'exclusive',
   };
 
+  static int _count(Object? value) =>
+      value is num && value.isFinite && value > 0 ? value.toInt() : 0;
+
+  /// API 边界单独解析，不能与落盘 Pi 字段相加。别名按 pi 优先级短路，零也有效。
+  factory TokenUsage.fromOpenAiJson(Map<String, dynamic> json) {
+    final details = json['prompt_tokens_details'];
+    final rawRead = [
+      if (details is Map) details['cached_tokens'],
+      json['prompt_cache_hit_tokens'],
+      json['cached_tokens'],
+    ].whereType<num>().firstOrNull;
+    final read = _count(rawRead);
+    final write = _count(details is Map ? details['cache_write_tokens'] : null);
+    final prompt = _count(json['prompt_tokens']);
+    return TokenUsage(
+      input: (prompt - read - write).clamp(0, prompt),
+      output: _count(json['completion_tokens']),
+      cacheRead: read,
+      cacheWrite: write,
+      cacheReadReported: rawRead != null && rawRead.isFinite && rawRead >= 0,
+    );
+  }
+
+  /// 已归一化的 Pi / 本地用量。旧外部 Pi 数据维持互斥口径，不盲目减缓存。
   factory TokenUsage.fromJson(dynamic json) {
     if (json is! Map) return const TokenUsage();
-    int asInt(dynamic v) => v is num ? v.toInt() : 0;
+    if (json is Map<String, dynamic> && json.containsKey('prompt_tokens')) {
+      return TokenUsage.fromOpenAiJson(json);
+    }
+    final read = _count(json['cacheRead']);
     return TokenUsage(
-      input: asInt(json['input']) + asInt(json['prompt_tokens']),
-      output: asInt(json['output']) + asInt(json['completion_tokens']),
-      cacheRead:
-          asInt(json['cacheRead']) +
-          asInt(json['prompt_cache_hit_tokens']) +
-          asInt(
-            json['prompt_tokens_details'] is Map
-                ? (json['prompt_tokens_details'] as Map)['cached_tokens']
-                : null,
-          ),
-      cacheWrite: asInt(json['cacheWrite']),
+      input: _count(json['input']),
+      output: _count(json['output']),
+      cacheRead: read,
+      cacheWrite: _count(json['cacheWrite']),
+      cacheReadReported: json['cacheReadReported'] as bool? ?? (read > 0),
+    );
+  }
+
+  /// 仅本应用旧账本 v1 / api=openai-chat 会话适用：旧 input 包含缓存。
+  /// 惰性读取迁移，不覆盖原始会话；新记录自带口径标记，重复读取不再减一次。
+  factory TokenUsage.fromLegacyAppJson(dynamic json) {
+    final usage = TokenUsage.fromJson(json);
+    if (json is! Map || json['inputAccounting'] == 'exclusive') return usage;
+    return TokenUsage(
+      input: (usage.input - usage.cacheRead - usage.cacheWrite).clamp(
+        0,
+        usage.input,
+      ),
+      output: usage.output,
+      cacheRead: usage.cacheRead,
+      cacheWrite: usage.cacheWrite,
+      cacheReadReported: usage.cacheReadReported,
     );
   }
 }
@@ -94,8 +141,9 @@ class AgentMessageImage {
   /// 图片 MIME 类型 (默认 image/png)
   final String mimeType;
 
-  static final Expando<Uint8List> _bytesCache =
-      Expando<Uint8List>('agent_message_image_bytes');
+  static final Expando<Uint8List> _bytesCache = Expando<Uint8List>(
+    'agent_message_image_bytes',
+  );
 
   const AgentMessageImage({required this.base64, this.mimeType = 'image/png'});
 

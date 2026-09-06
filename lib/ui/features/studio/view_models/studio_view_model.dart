@@ -13,6 +13,7 @@ import '../../../core/theme/app_accent_controller.dart';
 import '../../../core/theme/theme_mode_controller.dart';
 import '../../../core/theme/ui_zoom_controller.dart';
 import '../../../../core/harness/tools/annotation_tools.dart';
+import '../../../../core/harness/tools/anysearch_tools.dart';
 import '../../../../core/harness/tools/ask_user_tool.dart';
 import '../../../../core/harness/tools/canvas_view_tool.dart';
 import '../../../../core/harness/tools/character_prompt_tools.dart';

@@ -19,6 +19,9 @@ import 'settings_shared.dart';
 class GeneralSettingsDraft {
   GeneralSettingsDraft(AppConfig config)
     : naiKeyController = TextEditingController(text: config.novelAiKey),
+      anySearchKeyController = TextEditingController(
+        text: config.anySearchApiKey,
+      ),
       saveDirController = TextEditingController(text: config.saveDirectory),
       comfyBaseUrlController = TextEditingController(
         text: config.comfyUiBaseUrl,
@@ -50,6 +53,9 @@ class GeneralSettingsDraft {
       comfyUiEnabled = config.comfyUiEnabled;
 
   final TextEditingController naiKeyController;
+
+  /// AnySearch 网络搜索 API Key (可选，空 = 匿名访问)
+  final TextEditingController anySearchKeyController;
   final TextEditingController saveDirController;
   bool opusFreeMode;
 
@@ -88,6 +94,7 @@ class GeneralSettingsDraft {
 
   void dispose() {
     naiKeyController.dispose();
+    anySearchKeyController.dispose();
     saveDirController.dispose();
     comfyBaseUrlController.dispose();
     comfyPromptNodeController.dispose();
@@ -365,6 +372,16 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
                     setState(() => _draft.maxPersistentImages = count),
               ),
             ),
+          const SizedBox(height: 12),
+          AppSectionHeader(title: l10n.settingsSectionWebSearch),
+          AppSettingTile(
+            title: l10n.settingsAnySearchKeyTitle,
+            subtitle: l10n.settingsAnySearchKeySubtitle,
+            control: SettingsKeyField(
+              controller: _draft.anySearchKeyController,
+              hintText: 'as_sk-...',
+            ),
+          ),
           const SizedBox(height: 12),
           AppSectionHeader(title: l10n.settingsSectionComfy),
           AppSettingTile.switchTile(

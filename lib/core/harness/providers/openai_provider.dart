@@ -4,23 +4,16 @@ import 'package:http/http.dart' as http;
 import '../tools/agent_tool.dart';
 import '../types.dart';
 import 'llm_provider.dart';
+import 'prompt_cache_policy.dart';
+import '../../../data/models/llm_cache_config.dart';
 
 /// OpenAI 兼容格式提供商 (兼容 DeepSeek, Qwen, Moonshot, OpenAI, Ollama, LocalAI 等)
 class OpenAiCompatibleProvider implements LlmProvider {
-  /// 进程级降级开关：一旦某个端点对 `prompt_cache_key` 返回 400
-  /// ("Unsupported parameter")，后续请求不再携带该字段，避免反复撞墙。
-  /// (参考 pi-cache-optimizer 的进程内 fallback 策略)
-  static bool promptCacheKeyUnsupported = false;
+  /// 拒绝记录按端点、模型、字段隔离，不能让一个中转站关闭所有供应商的缓存键。
+  static final Set<(String, String, String)> _unsupportedCacheFields = {};
 
-  /// OpenAI 官方限制 prompt_cache_key 不超过 64 字符，超长截断
-  /// (参考 pi 的 clampOpenAIPromptCacheKey)
-  static String? clampPromptCacheKey(String? key) {
-    if (key == null) return null;
-    final chars = key.runes.toList();
-    return String.fromCharCodes(
-      chars.length <= 64 ? chars : chars.sublist(0, 64),
-    );
-  }
+  static String? clampPromptCacheKey(String? key) =>
+      PromptCachePolicy.clampKey(key);
 
   final String baseUrl;
   final String apiKey;
@@ -32,6 +25,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
   /// 对齐 pi openai-completions 的 thinkingFormat 兼容矩阵。
   final String? thinkingParamFormat;
   final http.Client _client;
+  final LlmCacheConfig cacheConfig;
 
   OpenAiCompatibleProvider({
     required this.baseUrl,
@@ -40,6 +34,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
     this.reasoning = false,
     this.thinkingEffort,
     this.thinkingParamFormat,
+    this.cacheConfig = const LlmCacheConfig(),
     http.Client? client,
   }) : _client = client ?? http.Client();
 
@@ -160,44 +155,63 @@ class OpenAiCompatibleProvider implements LlmProvider {
       requestBody['tool_choice'] = 'auto';
     }
 
-    // OpenAI 兼容端点：请求在最后一个 chunk 里携带 usage 统计
+    final cachePolicy = PromptCachePolicy(
+      config: cacheConfig,
+      endpoint: Uri.parse(endpoint),
+      model: model,
+    );
+    final cacheHeaders = <String, String>{};
     if (endpoint.endsWith('/chat/completions')) {
       requestBody['stream_options'] = {'include_usage': true};
-      // 会话级缓存路由键：帮助支持该参数的端点 (OpenAI 官方及兼容代理)
-      // 把同一会话的请求路由到同一 KV Cache 分片；不认识的端点一般忽略
-      // 未知字段，若严格拒绝则在响应处理中自动降级并重试。
-      final cacheKey = clampPromptCacheKey(promptCacheKey);
-      if (cacheKey != null &&
-          cacheKey.isNotEmpty &&
-          !promptCacheKeyUnsupported) {
-        requestBody['prompt_cache_key'] = cacheKey;
+      cachePolicy.apply(requestBody, promptCacheKey);
+      cacheHeaders.addAll(cachePolicy.headers(promptCacheKey));
+      for (final field in const [
+        'prompt_cache_key',
+        'prompt_cache_retention',
+      ]) {
+        if (_unsupportedCacheFields.contains((endpoint, model.trim(), field))) {
+          requestBody.remove(field);
+        }
       }
     }
 
     http.StreamedResponse streamedResponse;
     try {
-      streamedResponse = await _send(endpoint, requestBody);
+      streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
     } catch (e) {
       // 连接失败 / 超时 / TLS 握手中断等网络层异常均为瞬态
       yield ErrorEvent('网络请求异常: $e', transient: true);
       return;
     }
 
-    // 严格端点对 prompt_cache_key 返回 400：进程内降级并去掉该字段重试一次
-    if (streamedResponse.statusCode == 400 &&
-        requestBody.containsKey('prompt_cache_key')) {
+    // 仅在明确拒绝缓存字段时逐项降级，最多两次；长度/值错误不能污染能力记录。
+    while (streamedResponse.statusCode == 400) {
       final errBody = await streamedResponse.stream.bytesToString();
-      if (errBody.contains('prompt_cache_key')) {
-        promptCacheKeyUnsupported = true;
-        requestBody.remove('prompt_cache_key');
-        try {
-          streamedResponse = await _send(endpoint, requestBody);
-        } catch (e) {
-          yield ErrorEvent('网络请求异常: $e', transient: true);
-          return;
+      final lower = errBody.toLowerCase();
+      String? rejectedField;
+      if (RegExp(
+        r'unsupported|not supported|unknown|unrecognized|not permitted|not allowed|extra inputs',
+      ).hasMatch(lower)) {
+        for (final field in const [
+          'prompt_cache_key',
+          'prompt_cache_retention',
+        ]) {
+          if (requestBody.containsKey(field) && lower.contains(field)) {
+            rejectedField = field;
+            break;
+          }
         }
-      } else {
+      }
+      if (rejectedField == null) {
         yield ErrorEvent('LLM API 响应错误 (HTTP 400): $errBody');
+        return;
+      }
+      _unsupportedCacheFields.add((endpoint, model.trim(), rejectedField));
+      requestBody.remove(rejectedField);
+      try {
+        streamedResponse = await _send(endpoint, requestBody, cacheHeaders);
+      } catch (e) {
+        yield ErrorEvent('网络请求异常: $e', transient: true);
         return;
       }
     }
@@ -239,9 +253,16 @@ class OpenAiCompatibleProvider implements LlmProvider {
         final choices = json['choices'] as List<dynamic>?;
 
         // usage chunk (include_usage 时最后一个 chunk 的 choices 为空)
-        final usageJson = json['usage'];
+        final firstChoice = choices != null && choices.isNotEmpty
+            ? choices.first
+            : null;
+        final usageJson = json['usage'] is Map
+            ? json['usage']
+            : firstChoice is Map
+            ? firstChoice['usage']
+            : null;
         if (usageJson is Map<String, dynamic>) {
-          final usage = TokenUsage.fromJson(usageJson);
+          final usage = TokenUsage.fromOpenAiJson(usageJson);
           if (usage.total > 0) {
             yield UsageEvent(usage);
           }
@@ -377,9 +398,11 @@ class OpenAiCompatibleProvider implements LlmProvider {
   Future<http.StreamedResponse> _send(
     String endpoint,
     Map<String, dynamic> requestBody,
+    Map<String, String> cacheHeaders,
   ) {
     final request = http.Request('POST', Uri.parse(endpoint));
     request.headers['Content-Type'] = 'application/json';
+    request.headers.addAll(cacheHeaders);
     if (endpoint.endsWith('/messages')) {
       request.headers['x-api-key'] = apiKey.trim();
       request.headers['anthropic-version'] = '2023-06-01';

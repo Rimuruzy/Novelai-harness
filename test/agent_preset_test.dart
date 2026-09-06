@@ -207,6 +207,8 @@ void main() {
       expect(result.isError, isFalse);
       expect(result.content, contains('<skill name="v5-architect">'));
       expect(result.content, contains('V5 自然语言与空间视觉架构师'));
+      expect(result.content, contains('未知/不确定角色单Tag探测规则'));
+      expect(result.content, contains('仅靠角色的单 tag 生成一次图片来获取'));
 
       final inpaintResult = await tool.execute('call_inpaint', {
         'skill_name': 'inpaint-specialist',

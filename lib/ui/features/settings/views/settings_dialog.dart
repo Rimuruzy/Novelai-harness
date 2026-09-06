@@ -78,6 +78,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
     final newConfig = widget.viewModel.config.copyWith(
       novelAiKey: _generalDraft.naiKeyController.text.trim(),
+      anySearchApiKey: _generalDraft.anySearchKeyController.text.trim(),
       saveDirectory: _generalDraft.saveDirController.text.trim(),
       opusFreeMode: _generalDraft.opusFreeMode,
       themeMode: _generalDraft.themeMode,

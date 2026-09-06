@@ -52,6 +52,37 @@ void main() {
     isError: isError,
   );
 
+  for (final api in ['openai-chat', 'openai-completions']) {
+    test('legacy usage accounting is scoped to app API marker: $api', () async {
+      service.recordMessage(
+        assistantMsg(
+          usage: const TokenUsage(input: 1000, output: 50, cacheRead: 600),
+        ),
+        provider: 'test',
+        model: 'm',
+      );
+      await service.flush();
+      final file = service.currentSessionFile!;
+      final entries = file
+          .readAsLinesSync()
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .toList();
+      for (final entry in entries) {
+        final message = entry['message'];
+        if (message is Map<String, dynamic> && message['role'] == 'assistant') {
+          message['api'] = api;
+          (message['usage'] as Map<String, dynamic>).remove('inputAccounting');
+        }
+      }
+      file.writeAsStringSync('${entries.map(jsonEncode).join('\n')}\n');
+      final before = file.readAsStringSync();
+      final restored = service.loadLatestSession();
+      final usage = restored!.messages.single.usage!;
+      expect(usage.input, api == 'openai-chat' ? 400 : 1000);
+      expect(file.readAsStringSync(), before);
+    });
+  }
+
   test('writes Pi session format header and entries', () async {
     service.recordModelChange('deepseek', 'deepseek-chat');
     service.recordThinkingLevelChange('high');
@@ -315,40 +346,43 @@ void main() {
     expect(idle.loadLatestSession(), isNull);
   });
 
-  test('listSessions accurately parses and returns sessions metadata', () async {
-    // 1. 第一个会话
-    service.recordMessage(userMsg('画一张银发红瞳少女'));
-    service.recordMessage(
-      assistantMsg(
-        content: '好的，正在构思提示词。',
-        usage: const TokenUsage(input: 100, output: 50),
-      ),
-      provider: 'deepseek',
-      model: 'deepseek-chat',
-    );
-    await service.flush();
+  test(
+    'listSessions accurately parses and returns sessions metadata',
+    () async {
+      // 1. 第一个会话
+      service.recordMessage(userMsg('画一张银发红瞳少女'));
+      service.recordMessage(
+        assistantMsg(
+          content: '好的，正在构思提示词。',
+          usage: const TokenUsage(input: 100, output: 50),
+        ),
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+      );
+      await service.flush();
 
-    // 2. 第二个会话
-    final session2 = await service.createSession(title: '自定义会话二');
-    service.recordMessage(userMsg('帮我优化负向提示词'));
-    await service.flush();
+      // 2. 第二个会话
+      final session2 = await service.createSession(title: '自定义会话二');
+      service.recordMessage(userMsg('帮我优化负向提示词'));
+      await service.flush();
 
-    final sessions = await service.listSessions();
-    expect(sessions.length, equals(2));
+      final sessions = await service.listSessions();
+      expect(sessions.length, equals(2));
 
-    // 最新修改的会话排在第一位
-    expect(sessions.first.id, equals(session2.id));
-    expect(sessions.first.title, equals('自定义会话二'));
-    expect(sessions.first.messageCount, equals(1));
-    expect(sessions.first.isActive, isTrue);
+      // 最新修改的会话排在第一位
+      expect(sessions.first.id, equals(session2.id));
+      expect(sessions.first.title, equals('自定义会话二'));
+      expect(sessions.first.messageCount, equals(1));
+      expect(sessions.first.isActive, isTrue);
 
-    // 第一个会话
-    final firstSession = sessions.firstWhere((s) => s.id != session2.id);
-    expect(firstSession.title, contains('银发红瞳少女'));
-    expect(firstSession.messageCount, equals(2));
-    expect(firstSession.totalTokens, equals(150));
-    expect(firstSession.isActive, isFalse);
-  });
+      // 第一个会话
+      final firstSession = sessions.firstWhere((s) => s.id != session2.id);
+      expect(firstSession.title, contains('银发红瞳少女'));
+      expect(firstSession.messageCount, equals(2));
+      expect(firstSession.totalTokens, equals(150));
+      expect(firstSession.isActive, isFalse);
+    },
+  );
 
   test('createSession, loadSession and deleteSession lifecycle', () async {
     service.recordMessage(userMsg('会话一消息'));
@@ -376,20 +410,23 @@ void main() {
     expect(remaining.first.id, equals(firstId));
   });
 
-  test('renameSession updates session title and writes session_info entry', () async {
-    service.recordMessage(userMsg('原始提示词'));
-    await service.flush();
-    final sid = service.currentSessionId!;
+  test(
+    'renameSession updates session title and writes session_info entry',
+    () async {
+      service.recordMessage(userMsg('原始提示词'));
+      await service.flush();
+      final sid = service.currentSessionId!;
 
-    await service.renameSession(sid, '重命名后的会话标题');
-    await service.flush();
+      await service.renameSession(sid, '重命名后的会话标题');
+      await service.flush();
 
-    final sessions = await service.listSessions();
-    expect(sessions.first.title, equals('重命名后的会话标题'));
+      final sessions = await service.listSessions();
+      expect(sessions.first.title, equals('重命名后的会话标题'));
 
-    final snap = service.loadSession(sid);
-    expect(snap!.sessionTitle, equals('重命名后的会话标题'));
-  });
+      final snap = service.loadSession(sid);
+      expect(snap!.sessionTitle, equals('重命名后的会话标题'));
+    },
+  );
 
   test('rewindToMessageCount truncates session entries in JSONL', () async {
     service.recordMessage(userMsg('第一轮提问'));
@@ -419,4 +456,3 @@ void main() {
     expect(updatedSnapshot.messages[2].content, equals('新的第二轮提问'));
   });
 }
-

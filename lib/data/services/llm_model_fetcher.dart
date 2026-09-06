@@ -389,6 +389,7 @@ class LlmModelFetcher {
       maxTokens: maxTokens,
       temperature: temperature,
       imageOutput: imageOutput,
+      cacheConfig: existing?.cacheConfig ?? const LlmCacheConfig(),
     );
   }
 }

@@ -73,6 +73,9 @@ class PresetToolKeys {
   static const String addPromptLibraryEntry = 'add_prompt_library_entry';
   static const String updatePromptLibraryEntry = 'update_prompt_library_entry';
   static const String deletePromptLibraryEntry = 'delete_prompt_library_entry';
+  static const String webSearch = 'web_search';
+  static const String webGetDomains = 'get_search_domains';
+  static const String webExtract = 'web_extract';
 
   static const Map<String, String> labels = {
     generate: '图像生成',
@@ -103,6 +106,9 @@ class PresetToolKeys {
     addPromptLibraryEntry: '新增词库条目',
     updatePromptLibraryEntry: '修改词库条目',
     deletePromptLibraryEntry: '删除词库条目',
+    webSearch: '网页搜索',
+    webGetDomains: '搜索域目录',
+    webExtract: '网页正文提取',
   };
 
   /// 全部内置工具键 (完整权限预设直接复用)
@@ -139,6 +145,9 @@ const List<String> _fullTools = [
   PresetToolKeys.addPromptLibraryEntry,
   PresetToolKeys.updatePromptLibraryEntry,
   PresetToolKeys.deletePromptLibraryEntry,
+  PresetToolKeys.webSearch,
+  PresetToolKeys.webGetDomains,
+  PresetToolKeys.webExtract,
 ];
 
 const List<String> _coreTools = [
@@ -167,6 +176,9 @@ const List<String> _coreTools = [
   PresetToolKeys.addPromptLibraryEntry,
   PresetToolKeys.updatePromptLibraryEntry,
   PresetToolKeys.deletePromptLibraryEntry,
+  PresetToolKeys.webSearch,
+  PresetToolKeys.webGetDomains,
+  PresetToolKeys.webExtract,
 ];
 
 const List<String> _coreUpscaleTools = [
@@ -196,6 +208,9 @@ const List<String> _coreUpscaleTools = [
   PresetToolKeys.addPromptLibraryEntry,
   PresetToolKeys.updatePromptLibraryEntry,
   PresetToolKeys.deletePromptLibraryEntry,
+  PresetToolKeys.webSearch,
+  PresetToolKeys.webGetDomains,
+  PresetToolKeys.webExtract,
 ];
 
 const List<String> _allParams = [

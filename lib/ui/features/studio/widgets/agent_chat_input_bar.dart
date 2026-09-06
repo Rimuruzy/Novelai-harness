@@ -804,12 +804,12 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
       final u = entry.value;
       final detail = StringBuffer(
         l10n.chatSessionUsageDetail(
-          UsageLedgerService.formatTokens(u.input),
+          UsageLedgerService.formatTokens(u.totalInput),
           UsageLedgerService.formatTokens(u.output),
           UsageLedgerService.formatTokens(u.total),
         ),
       );
-      if (u.cacheRead > 0) {
+      if (u.cacheRead > 0 || u.cacheReadReported) {
         final rate = u.cacheHitRate;
         if (rate != null) {
           detail.write(
@@ -825,6 +825,11 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
             ),
           );
         }
+      }
+      if (!u.cacheReadReported) {
+        detail.write(
+          ' · ${u.cacheRead > 0 ? l10n.cacheUsagePartial : l10n.cacheUsageUnreported}',
+        );
       }
       buffer.write('\n${entry.key}\n${detail.toString()}');
     }

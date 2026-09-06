@@ -4,6 +4,7 @@ import '../../../../data/models/novelai_models.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
+import 'model_cache_settings.dart';
 
 /// 模型设置弹窗的返回结果
 class ModelProfileResult {
@@ -63,6 +64,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
   late bool _imageOutput;
   late double _temperature;
   late Set<ThinkingEffort> _levels;
+  late LlmCacheConfig _cacheConfig;
   String? _idError;
 
   @override
@@ -81,6 +83,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
     _multimodal = m.isMultimodal;
     _imageOutput = m.imageOutput;
     _temperature = m.temperature;
+    _cacheConfig = m.cacheConfig;
     _levels = {...m.supportedThinkingLevels};
     if (_reasoning && _levels.isEmpty) {
       _levels = {ThinkingEffort.high};
@@ -143,6 +146,7 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
           maxTokens: maxTokens <= 0 ? 8192 : maxTokens,
           temperature: _temperature,
           imageOutput: _imageOutput,
+          cacheConfig: _cacheConfig,
         ),
       ),
     );
@@ -288,6 +292,10 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                 digitsOnly: true,
                 width: 160,
               ),
+            ),
+            ModelCacheSettings(
+              value: _cacheConfig,
+              onChanged: (value) => setState(() => _cacheConfig = value),
             ),
           ],
         ),

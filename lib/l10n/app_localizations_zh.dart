@@ -200,6 +200,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsApiKeySubtitle => '官方 API 凭证 (pst-...)，用于图像生成与体力池同步';
 
   @override
+  String get settingsSectionWebSearch => '网络搜索';
+
+  @override
+  String get settingsAnySearchKeyTitle => 'AnySearch API Key';
+
+  @override
+  String get settingsAnySearchKeySubtitle => '可选，用于 Agent 网页搜索工具；未配置时匿名访问，限流较低';
+
+  @override
   String get settingsSaveDirTitle => '本地存储目录';
 
   @override
@@ -3021,4 +3030,48 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsComfyParamsNodeHint => 'Params Panel 节点 ID';
+
+  @override
+  String get settingsCacheMode => '提示缓存格式';
+
+  @override
+  String get settingsCacheModeAuto => '自动';
+
+  @override
+  String get settingsCacheModeOff => '不发送缓存提示';
+
+  @override
+  String get settingsCacheModeDesc =>
+      '自动仅识别 OpenAI 官方及 OpenRouter 的 Anthropic 模型。中转站需确认兼容格式；不发送提示不等于禁用上游自动缓存。';
+
+  @override
+  String get settingsCacheRetention => '缓存保留时间';
+
+  @override
+  String get settingsCacheRetentionShort => '默认';
+
+  @override
+  String get settingsCacheRetentionLong => '延长';
+
+  @override
+  String get settingsCacheRetentionDesc =>
+      '延长需端点支持：OpenAI 24 小时 / Anthropic 1 小时，可能改变计费。';
+
+  @override
+  String get settingsCacheAffinity => '会话亲和请求头';
+
+  @override
+  String get settingsCacheAffinityOff => '不发送';
+
+  @override
+  String get settingsCacheAffinityDesc => '仅在网关支持时启用，帮助同一会话路由至同一缓存；不保证命中。';
+
+  @override
+  String get cacheUsageUnreported => '未报告';
+
+  @override
+  String get cacheUsagePartial => '部分报告';
+
+  @override
+  String get cacheUsageInputUncached => '输入（未缓存）';
 }

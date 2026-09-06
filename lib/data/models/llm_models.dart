@@ -1,6 +1,9 @@
 /// LLM 供应商与模型配置 (协议、思考强度、模型元数据与出厂目录)。
 library;
 
+import 'llm_cache_config.dart';
+export 'llm_cache_config.dart';
+
 /// LLM 接口协议类型 (纯结构化枚举，UI 展示名由 model_label_l10n 接管)
 enum LlmProtocol {
   openAiChat('openai', '/chat/completions'),
@@ -76,6 +79,7 @@ class LlmModelConfig {
 
   /// 是否具备图像生成 / 整图编辑输出能力 (如 nano banana / gpt-image)
   final bool imageOutput;
+  final LlmCacheConfig cacheConfig;
 
   const LlmModelConfig({
     required this.id,
@@ -87,6 +91,7 @@ class LlmModelConfig {
     this.maxTokens = 8192,
     this.temperature = 0.7,
     this.imageOutput = false,
+    this.cacheConfig = const LlmCacheConfig(),
   });
 
   /// 是否具备多模态 / 图像视觉理解能力
@@ -118,6 +123,7 @@ class LlmModelConfig {
     int? maxTokens,
     double? temperature,
     bool? imageOutput,
+    LlmCacheConfig? cacheConfig,
   }) {
     return LlmModelConfig(
       id: id ?? this.id,
@@ -130,6 +136,7 @@ class LlmModelConfig {
       maxTokens: maxTokens ?? this.maxTokens,
       temperature: temperature ?? this.temperature,
       imageOutput: imageOutput ?? this.imageOutput,
+      cacheConfig: cacheConfig ?? this.cacheConfig,
     );
   }
 
@@ -145,6 +152,7 @@ class LlmModelConfig {
     'maxTokens': maxTokens,
     'temperature': temperature,
     if (imageOutput) 'imageOutput': true,
+    'cacheConfig': cacheConfig.toJson(),
   };
 
   factory LlmModelConfig.fromJson(Map<String, dynamic> json) {
@@ -177,6 +185,7 @@ class LlmModelConfig {
       maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 8192,
       temperature: (json['temperature'] as num?)?.toDouble() ?? 0.7,
       imageOutput: json['imageOutput'] as bool? ?? false,
+      cacheConfig: LlmCacheConfig.fromJson(json['cacheConfig']),
     );
   }
 }

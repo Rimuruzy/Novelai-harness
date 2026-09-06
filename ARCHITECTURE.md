@@ -72,6 +72,7 @@ Novelai-harness/
 │   │       ├── tools/
 │   │       │   ├── agent_tool.dart             # 工具抽象基类、执行上下文与工具注册中心
 │   │       │   ├── annotation_tools.dart       # 画板批注五件套工具与覆盖层离屏绘制 (view/add/update/remove/clear)
+│   │       │   ├── anysearch_tools.dart       # AnySearch 网络搜索三件套工具 (web_search / get_search_domains / web_extract)
 │   │       │   ├── ask_user_tool.dart          # 向用户提出结构化单选/多选/填空问题 (ask_user)
 │   │       │   ├── canvas_view_tool.dart       # 画板历史图片查看工具 (view_canvas_image，支持索引与覆盖层)
 │   │       │   ├── character_prompt_tools.dart  # 多角色提示词增删改查四件套工具
@@ -89,6 +90,7 @@ Novelai-harness/
 │   ├── data/                                   # 数据与服务层
 │   │   ├── models/
 │   │   │   ├── novelai_models.dart             # 聚合导出 barrel 文件 (保持模块引用解耦)
+│   │   │   ├── anysearch_models.dart           # AnySearch 协议实体 (搜索结果/子域目录/正文提取/异常)
 │   │   │   ├── image_palette.dart              # 图片主色盘模型 (ImagePalette/PaletteColor) 与种子色文本互转
 │   │   │   ├── inpaint_models.dart             # 局部修复与焦点特写模型 (InpaintMode/Geometry/BrushStroke/Params)
 │   │   │   ├── nai_catalog.dart                # NaiModel/采样器/噪声调度/分辨率预设枚举 (含 inpaintModelId)
@@ -107,6 +109,7 @@ Novelai-harness/
 │   │   │   └── comfyui_models.dart            # ComfyUI 模式实体 (Bridge 状态快照/参数补丁/实时选项清单/图片条目)
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与纯内存 ZIP 解包
+│   │   │   ├── anysearch_service.dart           # AnySearch 官方 REST 客户端 (搜索/子域目录/正文提取，信封解析与 Bearer/匿名双模式)
 │   │   │   ├── anlas_calculator.dart           # 现代 Anlas 消耗计算单一事实源 (Opus 免费档/分档超分计费)
 │   │   │   ├── inpaint_service.dart            # 焦点特写几何计算 (1MP 潜空间超采样/64 步长)、量化蒙版与无损回贴
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
@@ -475,3 +478,14 @@ graph LR
 - **配置持久化**：`AppConfig` 的 `comfyUiEnabled` / `comfyUiBaseUrl` / 三个目标节点 id 覆盖与 `comfyUiSampler` / `comfyUiScheduler` 全部经 SharedPreferences 落盘 (`novelai_comfyui_*` keys)。
 - **旁路语义**：ComfyUI 模式下质量词/UC 预设拼接与 Token 上限计数全部旁路 (UI 层隐藏入口)，Anlas 恒为 0；生图流程为 探测 → 解析目标节点 (显式配置优先，缺省取注册表第一个) → 推送参数 → 排队 → 轮询新图 (基线时间戳之后才算，15 分钟超时) → 拉字节登记历史。
 - **协议事实源**：`reference/PromptToolkit` 的 `nodes/ai_bridge.py` (注册表 + 路由) 与 `web/ai_bridge.js` (widget 双向同步，1.5s 推送节流)；Bridge 图片注册表仅保留最新 50 张并自动清理过期文件。
+
+### 3.9 网络搜索与正文提取 (AnySearch)
+
+Agent 对话可联网检索：AnySearch (`https://api.anysearch.com`) 三端点经 `AnySearchService` 统一封装，工具层提供 `web_search` / `get_search_domains` / `web_extract` 三件套：
+
+- **鉴权双模式**：`AppConfig.anySearchApiKey` (设置页 → 常规 → 网络搜索) 存在时携带 `Authorization: Bearer`；否则匿名访问 (限流较低)。密钥经工具构造注入的同步 getter 实时读取，修改后无需重启。
+- **统一信封解析**：响应 `{code, message, data}`；`code != 0` 或 HTTP >= 400 抛 `AnySearchException` (含 `request_id`)；匿名额度耗尽时响应可能携带 `auto_registered` 新 Key——仅透传给用户去设置页手动配置，绝不自动落盘。
+- **垂直领域约束**：17 个领域 (finance/academic/legal/code 等) 的搜索必须先 `get_search_domains` 查目录获取 `sub_domain` 路由键与必填参数，再在 `web_search` 的 `sub_domain`/`params` 中传入；`WebGetDomainsTool` 在本地校验领域合法性后才发请求。
+- **批量与截断**：`web_search` 支持 `queries` 1~5 条并行检索；`web_extract` 正文超过 12000 字符截断并标注，防止超长页面撑爆上下文；提取结果首行固定附加「不可信内容」警示，防范页面注入。
+- **工具权限**：三件套均纳入 `PresetToolKeys`，内置预设全部默认开放。
+- **协议事实源**：AnySearch 官方 Skill (github.com/anysearch-ai/anysearch-skill) 的 `doc_spec.md` 与 `constants.json`。

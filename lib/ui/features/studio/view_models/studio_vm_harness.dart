@@ -128,6 +128,17 @@ mixin _StudioHarnessMixin on _StudioCore {
     _toolRegistry.register(DanbooruSearchTagsTool());
     _toolRegistry.register(DanbooruRelatedTagsTool());
     _toolRegistry.register(DanbooruRecommendArtistsTool());
+    // AnySearch 网络搜索三件套 (web_search / get_search_domains / web_extract):
+    // 密钥从 AppConfig 实时读取，未配置时匿名访问 (限流较低)
+    String anySearchApiKeyGetter() {
+      return _config.anySearchApiKey;
+    }
+
+    _toolRegistry.register(WebSearchTool(apiKeyGetter: anySearchApiKeyGetter));
+    _toolRegistry.register(
+      WebGetDomainsTool(apiKeyGetter: anySearchApiKeyGetter),
+    );
+    _toolRegistry.register(WebExtractTool(apiKeyGetter: anySearchApiKeyGetter));
     _toolRegistry.register(
       NovelAiAccountInfoTool(
         repository: _repository,
@@ -274,6 +285,7 @@ mixin _StudioHarnessMixin on _StudioCore {
         thinkingEffort: supportsThinking ? _currentThinkingEffort.id : null,
         // 思考参数格式 (对齐 pi thinkingFormat 兼容矩阵，中转站可手动指定)
         thinkingParamFormat: activeLlm.thinkingParamFormat.id,
+        cacheConfig: activeModel.cacheConfig,
       );
     } else {
       _harness.provider = null;
