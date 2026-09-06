@@ -230,6 +230,12 @@ class OpenAiCompatibleProvider implements LlmProvider {
     bool inThinkTag = false;
     String pendingTagBuffer = '';
 
+    // 流式 usage 快照: 部分 newapi 系网关会在每个 SSE chunk 都回传全量累计
+    // usage，若逐 chunk 上报会让账本按 chunk 数重复记账 (input 虚增数倍)。
+    // 对齐 pi 的 parseChunkUsage 覆盖语义: 逐 chunk 覆盖 (last-wins)，
+    // 整条流结束后只发一次 UsageEvent。
+    TokenUsage? latestUsage;
+
     try {
       final lineStream = streamedResponse.stream
           .transform(utf8.decoder)
@@ -264,7 +270,7 @@ class OpenAiCompatibleProvider implements LlmProvider {
         if (usageJson is Map<String, dynamic>) {
           final usage = TokenUsage.fromOpenAiJson(usageJson);
           if (usage.total > 0) {
-            yield UsageEvent(usage);
+            latestUsage = usage;
           }
         }
 
@@ -391,6 +397,12 @@ class OpenAiCompatibleProvider implements LlmProvider {
     } catch (e) {
       // 流中断 / 解码失败多为服务端提前断连，按瞬态处理交给上层退避重试
       yield ErrorEvent('解析流式数据异常: $e', transient: true);
+    }
+
+    // 整条流只发一次 usage (含异常中断路径: 已消耗的 token 仍应入账)
+    final finalUsage = latestUsage;
+    if (finalUsage != null) {
+      yield UsageEvent(finalUsage);
     }
   }
 

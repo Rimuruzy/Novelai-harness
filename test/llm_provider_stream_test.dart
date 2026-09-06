@@ -374,4 +374,111 @@ void main() {
       );
     });
   });
+
+  group('流式 usage 记账 (对齐 pi last-wins 语义)', () {
+    test('逐 chunk 回传全量累计 usage 时只发一次 UsageEvent，取最后快照', () async {
+      final provider = _provider(
+        MockClient.streaming(
+          (req, body) async => _sse([
+            _delta({'content': '你'})
+              ..['usage'] = {'prompt_tokens': 100000, 'completion_tokens': 1},
+            _delta({'content': '好'})
+              ..['usage'] = {'prompt_tokens': 100000, 'completion_tokens': 2},
+            {
+              'choices': <dynamic>[],
+              'usage': {'prompt_tokens': 100000, 'completion_tokens': 3},
+            },
+          ]),
+        ),
+      );
+
+      final events = await provider
+          .streamChat(messages: [], tools: [])
+          .toList();
+
+      final usageEvents = events.whereType<UsageEvent>().toList();
+      // 整条流只发一次，否则账本会按 chunk 数重复记账 (input 虚增数十倍)
+      expect(usageEvents, hasLength(1));
+      expect(usageEvents.single.usage.input, equals(100000));
+      expect(usageEvents.single.usage.output, equals(3));
+      expect(usageEvents.single.usage.total, equals(100003));
+    });
+
+    test('标准 include_usage 尾部空 choices chunk 正常记账', () async {
+      final provider = _provider(
+        MockClient.streaming(
+          (req, body) async => _sse([
+            _delta({'content': 'ok'}),
+            {
+              'choices': <dynamic>[],
+              'usage': {
+                'prompt_tokens': 42,
+                'completion_tokens': 7,
+                'prompt_tokens_details': {'cached_tokens': 20},
+              },
+            },
+          ]),
+        ),
+      );
+
+      final events = await provider
+          .streamChat(messages: [], tools: [])
+          .toList();
+
+      final usageEvents = events.whereType<UsageEvent>().toList();
+      expect(usageEvents, hasLength(1));
+      expect(usageEvents.single.usage.input, equals(22));
+      expect(usageEvents.single.usage.cacheRead, equals(20));
+      expect(usageEvents.single.usage.output, equals(7));
+    });
+
+    test('Moonshot 风格 usage 藏在 choice 内也只取最后快照', () async {
+      final provider = _provider(
+        MockClient.streaming(
+          (req, body) async => _sse([
+            {
+              'choices': [
+                {
+                  'delta': {'content': 'a'},
+                  'usage': {'prompt_tokens': 10, 'completion_tokens': 1},
+                },
+              ],
+            },
+            {
+              'choices': [
+                {
+                  'delta': {'content': 'b'},
+                  'usage': {'prompt_tokens': 10, 'completion_tokens': 2},
+                },
+              ],
+            },
+          ]),
+        ),
+      );
+
+      final events = await provider
+          .streamChat(messages: [], tools: [])
+          .toList();
+
+      final usageEvents = events.whereType<UsageEvent>().toList();
+      expect(usageEvents, hasLength(1));
+      expect(usageEvents.single.usage.output, equals(2));
+    });
+
+    test('无任何 usage 字段的流不产生 UsageEvent', () async {
+      final provider = _provider(
+        MockClient.streaming(
+          (req, body) async => _sse([
+            _delta({'content': 'plain'}),
+          ]),
+        ),
+      );
+
+      final events = await provider
+          .streamChat(messages: [], tools: [])
+          .toList();
+
+      expect(events.whereType<UsageEvent>(), isEmpty);
+    });
+  });
 }

@@ -275,7 +275,13 @@ void main() {
         final events = (await p.streamChat(messages: [], tools: []).toList())
             .whereType<UsageEvent>()
             .toList();
-        expect(events.map((e) => e.usage.cacheRead), [80, 0, 100]);
+        // 整条流只发一次 usage (逐 chunk last-wins，对齐 pi)：
+        // 末尾快照同时验 top-level 优先于 choice.usage —— 若优先级颠倒
+        // (choice 100/80 胜出) 会得到 cacheRead=80 / input=20
+        expect(events, hasLength(1));
+        expect(events.single.usage.input, 100);
+        expect(events.single.usage.cacheRead, 100);
+        expect(events.single.usage.output, 0);
       },
     );
 
