@@ -3132,6 +3132,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'The workflow has no Prompt Panel node; install the PromptToolkit plugin, add its nodes on the ComfyUI canvas, and keep the browser canvas open';
 
   @override
+  String get comfySamplerLabel => 'Sampler';
+
+  @override
+  String get comfySchedulerLabel => 'Scheduler';
+
+  @override
+  String get comfyFollowWorkflow => 'Follow workflow';
+
+  @override
+  String get comfyOptionsPendingHint =>
+      'Connect to ComfyUI to fetch the available samplers and schedulers';
+
+  @override
   String get settingsSectionComfy => 'ComfyUI Mode';
 
   @override

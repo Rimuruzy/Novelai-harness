@@ -60,17 +60,60 @@ class ComfyUiService {
 
   // ------------------------- 参数下发 -------------------------
 
+  /// 实时拉取 ComfyUI 服务器当前可用的采样器与调度器清单。
+  ///
+  /// 走 ComfyUI 标准 `/object_info` 端点 (无需 Bridge 路由)：优先读
+  /// ParamsPanelPT 节点定义；节点不存在或旧版插件无采样器字段时，
+  /// 回退到原生 KSampler 节点定义。两处都拿不到则抛出异常。
+  Future<ComfyUiOptionCatalog> fetchOptionCatalog({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    for (final nodeClass in const ['ParamsPanelPT', 'KSampler']) {
+      final Map<String, dynamic> body;
+      try {
+        body = await _getJson('/object_info/$nodeClass', timeout);
+      } on ComfyUiBridgeException {
+        continue; // 节点未注册/旧版插件 → 尝试下一个
+      }
+      final samplers = _comboValues(body, 'sampler_name');
+      final schedulers = _comboValues(body, 'scheduler');
+      if (samplers.isEmpty && schedulers.isEmpty) continue;
+      return ComfyUiOptionCatalog(samplers: samplers, schedulers: schedulers);
+    }
+    throw const ComfyUiBridgeException('服务器未返回可用的采样器与调度器清单');
+  }
+
+  /// 从 `/object_info/<Node>` 响应中提取组合 widget 的可选值列表。
+  /// 响应结构为 `{<Node>: {input: {required: {field: [[values...], {...}]}}}}`，
+  /// 与 ComfyUI 官方节点定义序列化格式一致。
+  List<String> _comboValues(Map<String, dynamic> body, String field) {
+    for (final spec in body.values) {
+      if (spec is! Map<String, dynamic>) continue;
+      final input = spec['input'];
+      if (input is! Map<String, dynamic>) continue;
+      final section = input['required'] ?? input['optional'];
+      if (section is! Map<String, dynamic>) continue;
+      final fieldSpec = section[field];
+      if (fieldSpec is! List || fieldSpec.isEmpty) continue;
+      final values = fieldSpec.first;
+      if (values is! List) continue;
+      return [
+        for (final v in values)
+          if (v is String) v,
+      ];
+    }
+    return const [];
+  }
+
   /// 设置 PromptPanel 节点的正向提示词 (前端画布 widget 实时同步)
   Future<void> setPrompt(String nodeId, String positive) =>
       _postJson('/pt/ai/prompt/set', {'node_id': nodeId, 'positive': positive});
 
   /// 设置 ResolutionMasterPT 节点的宽高 (batch 等字段不动)
-  Future<void> setResolution(String nodeId, int width, int height) =>
-      _postJson('/pt/ai/resolution/set', {
-        'node_id': nodeId,
-        'width': width,
-        'height': height,
-      });
+  Future<void> setResolution(String nodeId, int width, int height) => _postJson(
+    '/pt/ai/resolution/set',
+    {'node_id': nodeId, 'width': width, 'height': height},
+  );
 
   /// 设置 ParamsPanelPT 节点的负向词与采样参数 (仅下发补丁内非空字段)
   Future<void> setParams(String nodeId, ComfyUiParamsPatch patch) {
@@ -91,17 +134,14 @@ class ComfyUiService {
     int limit = 5,
     Duration timeout = const Duration(seconds: 5),
   }) async {
-    final body = await _getJson(
-      '/pt/ai/image/latest',
-      timeout,
-      {'limit': '$limit'},
-    );
+    final body = await _getJson('/pt/ai/image/latest', timeout, {
+      'limit': '$limit',
+    });
     final list = body['images'];
     if (list is! List) return const [];
     return [
       for (final e in list)
-        if (e is Map<String, dynamic>)
-          ComfyUiBridgeImage.fromJson(e),
+        if (e is Map<String, dynamic>) ComfyUiBridgeImage.fromJson(e),
     ];
   }
 
@@ -111,9 +151,7 @@ class ComfyUiService {
     Duration timeout = const Duration(seconds: 30),
   }) async {
     final response = await _run(
-      () => _httpClient.get(
-        _uri('/pt/ai/image/raw', {'index': '$index'}),
-      ),
+      () => _httpClient.get(_uri('/pt/ai/image/raw', {'index': '$index'})),
       timeout,
     );
     if (response.statusCode != 200) {
@@ -162,10 +200,7 @@ class ComfyUiService {
     try {
       return await action().timeout(timeout);
     } on TimeoutException {
-      throw ComfyUiBridgeException(
-        '连接 $baseUrl 超时',
-        isConnectionError: true,
-      );
+      throw ComfyUiBridgeException('连接 $baseUrl 超时', isConnectionError: true);
     } on http.ClientException catch (e) {
       throw ComfyUiBridgeException(
         '无法连接 $baseUrl (${e.message})',
@@ -180,8 +215,7 @@ class ComfyUiService {
       if (response.body.isNotEmpty) {
         try {
           final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-          if (decoded is Map<String, dynamic> &&
-              decoded['error'] is String) {
+          if (decoded is Map<String, dynamic> && decoded['error'] is String) {
             detail = decoded['error'] as String;
           }
         } catch (_) {}

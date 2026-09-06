@@ -190,6 +190,14 @@ class AppConfig {
   final String comfyUiResolutionNodeId;
   final String comfyUiParamsNodeId;
 
+  /// ComfyUI 采样器 (空 = 跟随工作流，不下发；
+  /// 可选值实时来自服务器 /object_info，如 euler / dpmpp_2m)
+  final String comfyUiSampler;
+
+  /// ComfyUI 噪声调度器 (空 = 跟随工作流，不下发；
+  /// 如 normal / karras / exponential)
+  final String comfyUiScheduler;
+
   // LLM 设置 (多供应商配置)
   final List<LlmProviderConfig> llmProviders;
   final String activeLlmProviderId;
@@ -293,6 +301,8 @@ class AppConfig {
     this.comfyUiPromptNodeId = '',
     this.comfyUiResolutionNodeId = '',
     this.comfyUiParamsNodeId = '',
+    this.comfyUiSampler = '',
+    this.comfyUiScheduler = '',
     this.llmProviders = const [],
     this.activeLlmProviderId = 'deepseek',
     this.imageEditProviderId = '',
@@ -343,6 +353,8 @@ class AppConfig {
     String? comfyUiPromptNodeId,
     String? comfyUiResolutionNodeId,
     String? comfyUiParamsNodeId,
+    String? comfyUiSampler,
+    String? comfyUiScheduler,
     List<LlmProviderConfig>? llmProviders,
     String? activeLlmProviderId,
     String? imageEditProviderId,
@@ -400,6 +412,8 @@ class AppConfig {
       comfyUiResolutionNodeId:
           comfyUiResolutionNodeId ?? this.comfyUiResolutionNodeId,
       comfyUiParamsNodeId: comfyUiParamsNodeId ?? this.comfyUiParamsNodeId,
+      comfyUiSampler: comfyUiSampler ?? this.comfyUiSampler,
+      comfyUiScheduler: comfyUiScheduler ?? this.comfyUiScheduler,
       llmProviders: updatedProviders,
       activeLlmProviderId: targetActiveId,
       imageEditProviderId: imageEditProviderId ?? this.imageEditProviderId,
@@ -458,6 +472,18 @@ class ConfigService {
   static const String _keyCharacterAiPosition = 'novelai_character_ai_position';
   static const String _keySeedMode = 'novelai_seed_mode';
   static const String _keySeedTiming = 'novelai_seed_timing';
+
+  // ComfyUI 模式持久化 Keys
+  static const String _keyComfyUiEnabled = 'novelai_comfyui_enabled';
+  static const String _keyComfyUiBaseUrl = 'novelai_comfyui_base_url';
+  static const String _keyComfyUiPromptNodeId =
+      'novelai_comfyui_prompt_node_id';
+  static const String _keyComfyUiResolutionNodeId =
+      'novelai_comfyui_resolution_node_id';
+  static const String _keyComfyUiParamsNodeId =
+      'novelai_comfyui_params_node_id';
+  static const String _keyComfyUiSampler = 'novelai_comfyui_sampler';
+  static const String _keyComfyUiScheduler = 'novelai_comfyui_scheduler';
 
   // 页面布局持久化 Keys
   static const String _keySplitLeftWidth = 'novelai_layout_split_left_width';
@@ -734,6 +760,19 @@ class ConfigService {
       } catch (_) {}
     }
 
+    // ComfyUI 模式配置加载
+    final bool comfyEnabled = prefs.getBool(_keyComfyUiEnabled) ?? false;
+    final String comfyBaseUrl =
+        prefs.getString(_keyComfyUiBaseUrl) ?? 'http://127.0.0.1:8188';
+    final String comfyPromptNodeId =
+        prefs.getString(_keyComfyUiPromptNodeId) ?? '';
+    final String comfyResolutionNodeId =
+        prefs.getString(_keyComfyUiResolutionNodeId) ?? '';
+    final String comfyParamsNodeId =
+        prefs.getString(_keyComfyUiParamsNodeId) ?? '';
+    final String comfySampler = prefs.getString(_keyComfyUiSampler) ?? '';
+    final String comfyScheduler = prefs.getString(_keyComfyUiScheduler) ?? '';
+
     return AppConfig(
       novelAiKey: naiKey,
       defaultModel: modelId.isNotEmpty
@@ -776,6 +815,13 @@ class ConfigService {
       enableWatermark: enableWm,
       keepOriginalImage: keepOrig,
       watermarkConfig: wmConfig,
+      comfyUiEnabled: comfyEnabled,
+      comfyUiBaseUrl: comfyBaseUrl,
+      comfyUiPromptNodeId: comfyPromptNodeId,
+      comfyUiResolutionNodeId: comfyResolutionNodeId,
+      comfyUiParamsNodeId: comfyParamsNodeId,
+      comfyUiSampler: comfySampler,
+      comfyUiScheduler: comfyScheduler,
       llmProviders: providers,
       activeLlmProviderId: activeProviderId,
       imageEditProviderId: imageEditProviderId,
@@ -853,6 +899,18 @@ class ConfigService {
       _keyWatermarkConfig,
       jsonEncode(config.watermarkConfig.toJson()),
     );
+
+    // 保存 ComfyUI 模式配置
+    await prefs.setBool(_keyComfyUiEnabled, config.comfyUiEnabled);
+    await prefs.setString(_keyComfyUiBaseUrl, config.comfyUiBaseUrl);
+    await prefs.setString(_keyComfyUiPromptNodeId, config.comfyUiPromptNodeId);
+    await prefs.setString(
+      _keyComfyUiResolutionNodeId,
+      config.comfyUiResolutionNodeId,
+    );
+    await prefs.setString(_keyComfyUiParamsNodeId, config.comfyUiParamsNodeId);
+    await prefs.setString(_keyComfyUiSampler, config.comfyUiSampler);
+    await prefs.setString(_keyComfyUiScheduler, config.comfyUiScheduler);
 
     // 保存多供应商配置
     final providersJson = jsonEncode(

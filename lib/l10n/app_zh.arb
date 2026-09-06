@@ -1334,6 +1334,10 @@
   "comfyBackendNovelAI": "NovelAI",
   "comfyBackendComfyUI": "ComfyUI",
   "comfyBridgeNoPanelHint": "工作流缺少 Prompt Panel 节点；需安装 PromptToolkit 插件并在 ComfyUI 画布中添加节点后保持浏览器画布打开",
+  "comfySamplerLabel": "采样器",
+  "comfySchedulerLabel": "调度器",
+  "comfyFollowWorkflow": "跟随工作流",
+  "comfyOptionsPendingHint": "连接 ComfyUI 后自动获取可用采样器与调度器",
 
   "settingsSectionComfy": "ComfyUI 模式",
   "settingsComfyEnabledTitle": "启用 ComfyUI 模式",

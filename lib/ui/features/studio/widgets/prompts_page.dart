@@ -165,10 +165,7 @@ class _PromptsPageState extends State<PromptsPage> {
         (params.suffixPrompt?.trim().isNotEmpty ?? false);
     final qualityTags = viewModelIsComfyUi
         ? ''
-        : NovelAiQualityTagsHelper.getQualityTags(
-            params.model,
-            _qualityPreset,
-          );
+        : NovelAiQualityTagsHelper.getQualityTags(params.model, _qualityPreset);
     return [
       if (hasSuffix) GrayTag('SUFFIX', params.suffixPrompt!.trim()),
       if (qualityTags.isNotEmpty) GrayTag('QUALITY', qualityTags),
@@ -462,9 +459,7 @@ class _PromptsPageState extends State<PromptsPage> {
             showTranslation: viewModel.config.showTagTranslations,
             tokenUsage: viewModelIsComfyUi
                 ? null
-                : PromptTokenCounterService.instance.countPositive(
-                    params,
-                  ),
+                : PromptTokenCounterService.instance.countPositive(params),
           )
         else
           PromptEditorCard(
@@ -481,9 +476,7 @@ class _PromptsPageState extends State<PromptsPage> {
             showTranslation: viewModel.config.showTagTranslations,
             tokenUsage: viewModelIsComfyUi
                 ? null
-                : PromptTokenCounterService.instance.countNegative(
-                    params,
-                  ),
+                : PromptTokenCounterService.instance.countNegative(params),
           ),
       ],
     );

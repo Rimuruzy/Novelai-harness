@@ -5504,6 +5504,30 @@ abstract class AppLocalizations {
   /// **'工作流缺少 Prompt Panel 节点；需安装 PromptToolkit 插件并在 ComfyUI 画布中添加节点后保持浏览器画布打开'**
   String get comfyBridgeNoPanelHint;
 
+  /// No description provided for @comfySamplerLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'采样器'**
+  String get comfySamplerLabel;
+
+  /// No description provided for @comfySchedulerLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'调度器'**
+  String get comfySchedulerLabel;
+
+  /// No description provided for @comfyFollowWorkflow.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随工作流'**
+  String get comfyFollowWorkflow;
+
+  /// No description provided for @comfyOptionsPendingHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接 ComfyUI 后自动获取可用采样器与调度器'**
+  String get comfyOptionsPendingHint;
+
   /// No description provided for @settingsSectionComfy.
   ///
   /// In zh, this message translates to:

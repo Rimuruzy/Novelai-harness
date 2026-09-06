@@ -17,7 +17,7 @@ graph TD
         CanvasView["ImageCanvas / InpaintCanvas / BoardView"]
         ChatView["AgentChatCard (对话流 / 思考链 / 附件)"]
         Settings["SettingsDialog (五维设置中枢)"]
-        VM["StudioViewModel (状态管理中枢 - 10 个 Mixin 分部组合)"]
+        VM["StudioViewModel (状态管理中枢 - 11 个 Mixin 分部组合)"]
     end
 
     subgraph Core ["核心运行时 (Core Harness Layer)"]
@@ -103,13 +103,15 @@ Novelai-harness/
 │   │   │   ├── nai_special_tags.dart           # NovelAI 官方专属标签事实源 (画质/美学/复杂度/数据集/透明通道/改名/其他 + 年代样例)
 │   │   │   ├── image_annotation.dart           # 图像批注模型 (rect 选区/point 图钉/global，归一化坐标+调色板)
 │   │   │   ├── canvas_board_models.dart        # 自由大画布节点模型 (图片卡/便利贴/连线/视口矩阵，含 JSON 序列化)
-│   │   │   └── image_metadata_models.dart      # 图像元数据模型与水印配置实体 (WatermarkConfig)
+│   │   │   ├── image_metadata_models.dart      # 图像元数据模型与水印配置实体 (WatermarkConfig)
+│   │   │   └── comfyui_models.dart            # ComfyUI 模式实体 (Bridge 状态快照/参数补丁/实时选项清单/图片条目)
 │   │   ├── services/
 │   │   │   ├── novelai_service.dart            # NovelAI 官方 HTTP 通信、并发锁与纯内存 ZIP 解包
 │   │   │   ├── anlas_calculator.dart           # 现代 Anlas 消耗计算单一事实源 (Opus 免费档/分档超分计费)
 │   │   │   ├── inpaint_service.dart            # 焦点特写几何计算 (1MP 潜空间超采样/64 步长)、量化蒙版与无损回贴
 │   │   │   ├── watermark_service.dart          # 图像导出管道单一事实源 (可见水印/自动对比度/智能选位/Koch-Zhao DCT 盲水印)
 │   │   │   ├── image_edit_service.dart         # 外部绘图模型整图编辑服务 (OpenAI 兼容 /chat/completions 传图返图)
+│   │   │   ├── comfyui_service.dart            # ComfyUI PromptToolkit AI Bridge 客户端 (注册表探测/参数下发/采样器选项实时拉取)
 │   │   │   ├── image_metadata_service.dart     # PNG Chunks 与 Alpha LSB 隐写读取、元数据脱敏抹除与注入
 │   │   │   ├── palette_service.dart            # 图片主色盘提取 (MD3 Celebi 量化+Score 打分，后台 Isolate，LRU 缓存)
 │   │   │   ├── tag_dictionary_service.dart     # 32万+ Danbooru 离线词库检索、官方专属词同构合并、年代标签动态合成、多模态反查与缓存服务 (后台 Isolate)
@@ -170,6 +172,7 @@ Novelai-harness/
 │               │   ├── studio_vm_slash.dart     # 斜杠分部：斜杠指令分发与参数解析
 │               │   ├── studio_vm_library.dart  # 词库分部：词组合预设库检索/增删改/导入导出与一键应用
 │               │   ├── studio_vm_annotations.dart # 批注分部：自由大画布节点/便利贴 CRUD 与批注持久化同步
+│               │   ├── studio_vm_comfyui.dart  # ComfyUI 分部：Bridge 连接探测/选项清单拉取/参数推送/排队轮询与统一落图
 │               │   ├── chat_checkpoints.dart   # 消息树分支检查点 (回溯视图数据模型)
 │               │   ├── param_snapshot_journal.dart # 生图参数快照日志 (记录 Agent 参数修改差异)
 │               │   └── slash_command_catalog.dart # 内置斜杠指令目录单一事实源 (自动补全与 /help 共享)
@@ -397,6 +400,7 @@ classDiagram
     class _StudioSlashMixin
     class _StudioLibraryMixin
     class _StudioAnnotationsMixin
+    class _StudioComfyMixin
 
     StudioViewModel --|> _StudioCore
     StudioViewModel ..> _StudioLayoutMixin
@@ -409,10 +413,11 @@ classDiagram
     StudioViewModel ..> _StudioSlashMixin
     StudioViewModel ..> _StudioLibraryMixin
     StudioViewModel ..> _StudioAnnotationsMixin
+    StudioViewModel ..> _StudioComfyMixin
 ```
 
 - **`_StudioCore`**：统一定义所有私有核心状态字段与数据访问契约；
-- **各领域 Mixin**：将布局、Harness 调度、生图流水线、修复处理、对话与流式节流、会话分支、角色管理、斜杠指令、词库、大画布批注等逻辑高内聚拆分到各个独立分部中，保持各业务职责极其明确。
+- **各领域 Mixin**：将布局、Harness 调度、生图流水线、修复处理、对话与流式节流、会话分支、角色管理、斜杠指令、词库、大画布批注、ComfyUI 桥接等逻辑高内聚拆分到各个独立分部中，保持各业务职责极其明确。
 
 ---
 
@@ -445,3 +450,28 @@ graph TD
 - **同名去重与字段合并**：`transparent background`、`alpha transparency`、`visual novel cg` 等词条 Danbooru 与官方两侧都存在，去重时保留携带官方分组胶囊 (`NAI·画质` 等) 与模型可用范围说明的专属词条，并合并 Danbooru 侧的热度计数、别名与更高分值。
 - **反查表覆盖**：专属词条在词库加载与热替换后写入 `_tagToZh` / `_tagToCat` 并覆盖同名 Danbooru 释义，使 `rich_prompt_text_controller` 的分类着色与中文释义对官方专属词同样生效；服务构造时先行播种，保证词库加载前也能高亮。
 - **UI 分组呈现**：标签灵感库 (`tag_inspiration_presets.dart`) 以 `kTagInspirationGroups` 将官方专属词条按文档分节置顶 (`NAI·画质` / `NAI·美学` / … / `NAI·年代`)，其后才是人工维护的通用灵感分类；灵感库无别名胶囊，故改用 `galleryZh` 补齐改名标签的旧写法说明，补全卡则用 `displayZh` 避免与别名胶囊重复。
+
+---
+
+### 3.8 ComfyUI 模式与 AI Bridge 驱动管线 (ComfyUI Mode)
+
+工作台支持把生图后端从 NovelAI 官方接口切换为本地/局域网 ComfyUI，经 PromptToolkit 插件的 AI Bridge (`/pt/ai/*` HTTP 路由) 驱动：
+
+```mermaid
+graph LR
+    VM["_StudioComfyMixin"] --> Probe["fetchBridgeState (注册表探测)"]
+    Probe --> Catalog["fetchOptionCatalog (/object_info)"]
+    VM --> Push["推送参数"]
+    Push --> P1["PromptPanel (正向词)"]
+    Push --> P2["ResolutionMasterPT (宽高)"]
+    Push --> P3["ParamsPanelPT (负向词/steps/cfg/seed/denoise/sampler/scheduler)"]
+    VM --> Queue["POST /pt/ai/queue (前端排队)"]
+    Queue --> Poll["轮询 /pt/ai/image/latest"]
+    Poll --> Fetch["/pt/ai/image/raw 拉全分辨率字节"]
+    Fetch --> Record["recordComfyUiImage 统一落图管线"]
+```
+
+- **采样器与调度器实时获取**：ParamsPanelPT 节点新增 `sampler_name` / `scheduler` 组合 widget (选项实时取自 ComfyUI 采样器注册表 `comfy.samplers.KSampler.SAMPLERS/SCHEDULERS`，自定义节点注册的扩展采样器自动出现)；工作台连接成功后经标准 `/object_info/ParamsPanelPT` 端点拉取可选值 (旧版插件无该字段时回退 `/object_info/KSampler`)，参数页以两栏下拉呈现，首项「跟随工作流」表示不下发该字段、保留画布节点自身设置。
+- **配置持久化**：`AppConfig` 的 `comfyUiEnabled` / `comfyUiBaseUrl` / 三个目标节点 id 覆盖与 `comfyUiSampler` / `comfyUiScheduler` 全部经 SharedPreferences 落盘 (`novelai_comfyui_*` keys)。
+- **旁路语义**：ComfyUI 模式下质量词/UC 预设拼接与 Token 上限计数全部旁路 (UI 层隐藏入口)，Anlas 恒为 0；生图流程为 探测 → 解析目标节点 (显式配置优先，缺省取注册表第一个) → 推送参数 → 排队 → 轮询新图 (基线时间戳之后才算，15 分钟超时) → 拉字节登记历史。
+- **协议事实源**：`reference/PromptToolkit` 的 `nodes/ai_bridge.py` (注册表 + 路由) 与 `web/ai_bridge.js` (widget 双向同步，1.5s 推送节流)；Bridge 图片注册表仅保留最新 50 张并自动清理过期文件。

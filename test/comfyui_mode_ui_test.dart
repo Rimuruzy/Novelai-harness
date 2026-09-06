@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novelai_harness/data/models/comfyui_models.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/novelai_service.dart';
@@ -56,17 +57,56 @@ void main() {
       comfyUiPromptNodeId: '10',
       comfyUiResolutionNodeId: '20',
       comfyUiParamsNodeId: '30',
+      comfyUiSampler: 'dpmpp_2m',
+      comfyUiScheduler: 'karras',
     );
     expect(config.comfyUiEnabled, isTrue);
     expect(config.comfyUiBaseUrl, 'http://192.168.1.20:8188');
     expect(config.comfyUiPromptNodeId, '10');
     expect(config.comfyUiResolutionNodeId, '20');
     expect(config.comfyUiParamsNodeId, '30');
+    expect(config.comfyUiSampler, 'dpmpp_2m');
+    expect(config.comfyUiScheduler, 'karras');
+  });
+
+  test('ComfyUI 配置经 SharedPreferences 持久化往返', () async {
+    final configService = ConfigService();
+    final config = (await configService.loadConfig()).copyWith(
+      comfyUiEnabled: true,
+      comfyUiBaseUrl: 'http://192.168.1.50:8188',
+      comfyUiPromptNodeId: '1',
+      comfyUiResolutionNodeId: '2',
+      comfyUiParamsNodeId: '3',
+      comfyUiSampler: 'dpmpp_2m',
+      comfyUiScheduler: 'exponential',
+    );
+    await configService.saveConfig(config);
+
+    // 新实例重新加载，验证全部 ComfyUI 字段落盘不丢
+    final reloaded = await ConfigService().loadConfig();
+    expect(reloaded.comfyUiEnabled, isTrue);
+    expect(reloaded.comfyUiBaseUrl, 'http://192.168.1.50:8188');
+    expect(reloaded.comfyUiPromptNodeId, '1');
+    expect(reloaded.comfyUiResolutionNodeId, '2');
+    expect(reloaded.comfyUiParamsNodeId, '3');
+    expect(reloaded.comfyUiSampler, 'dpmpp_2m');
+    expect(reloaded.comfyUiScheduler, 'exponential');
+  });
+
+  test('ComfyUI 采样器/调度器默认为空 (跟随工作流)', () {
+    expect(viewModel.comfySampler, isEmpty);
+    expect(viewModel.comfyScheduler, isEmpty);
+    expect(viewModel.comfyOptionCatalog, isNull);
   });
 
   testWidgets('参数页 ComfyUI 模式：显示后端切换与连接卡，隐藏模型与采样器', (
     WidgetTester tester,
   ) async {
+    // 参数页较长：拉大视口保证 ComfyUI 采样区块构建
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       buildTestWidget(ParametersPage(viewModel: viewModel)),
     );
@@ -78,11 +118,39 @@ void main() {
     // NovelAI 专属区块隐藏：模型选择 / Sampler 下拉 / 高级选项
     expect(find.text('模型'), findsNothing);
     expect(find.text('Sampler'), findsNothing);
+    // ComfyUI 采样区块：未连接时展示等待提示而非下拉
+    expect(find.text('采样器'), findsNothing);
+    expect(find.text('调度器'), findsNothing);
+    expect(find.textContaining('连接 ComfyUI 后自动获取'), findsOneWidget);
   });
 
-  testWidgets('参数页 NovelAI 模式：恢复模型选择与 Sampler 两栏', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('参数页 ComfyUI 模式：连接后展示采样器与调度器下拉', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1200, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // 直接注入模拟选项清单并选中一个采样器 (绕过网络探测)
+    await viewModel.setComfySampler('dpmpp_2m');
+    viewModel.setComfyOptionCatalogForTesting(
+      const ComfyUiOptionCatalog(
+        samplers: ['euler', 'dpmpp_2m'],
+        schedulers: ['normal', 'karras'],
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildTestWidget(ParametersPage(viewModel: viewModel)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('采样器'), findsOneWidget);
+    expect(find.text('调度器'), findsOneWidget);
+    // 下拉收起态只渲染选中项：调度器未选中 → 显示首项「跟随工作流」
+    expect(find.text('跟随工作流'), findsOneWidget);
+    expect(find.text('dpmpp_2m'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('参数页 NovelAI 模式：恢复模型选择与 Sampler 两栏', (WidgetTester tester) async {
     // 参数页较长，Sampler 两栏在默认 600 高视口之外：拉大视口保证全部构建
     tester.view.physicalSize = const Size(1200, 3200);
     tester.view.devicePixelRatio = 1.0;
@@ -106,9 +174,7 @@ void main() {
   testWidgets('提示词页 ComfyUI 模式：隐藏质量词与 UC 预设工具条及 Token 状态条', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      buildTestWidget(PromptsPage(viewModel: viewModel)),
-    );
+    await tester.pumpWidget(buildTestWidget(PromptsPage(viewModel: viewModel)));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Quality Tags'), findsNothing);
@@ -116,25 +182,21 @@ void main() {
     expect(find.textContaining('Transparent BG'), findsNothing);
   });
 
-  testWidgets('提示词页 NovelAI 模式：恢复质量词与 UC 预设工具条', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('提示词页 NovelAI 模式：恢复质量词与 UC 预设工具条', (WidgetTester tester) async {
     await viewModel.updateConfig(
       viewModel.config.copyWith(comfyUiEnabled: false),
     );
-    await tester.pumpWidget(
-      buildTestWidget(PromptsPage(viewModel: viewModel)),
-    );
+    await tester.pumpWidget(buildTestWidget(PromptsPage(viewModel: viewModel)));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Quality Tags'), findsOneWidget);
     expect(find.textContaining('UC Preset'), findsOneWidget);
   });
 
-  testWidgets('生成坞 ComfyUI 模式：账号栏换成 Bridge 状态行', (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(buildTestWidget(GenerateDock(viewModel: viewModel)));
+  testWidgets('生成坞 ComfyUI 模式：账号栏换成 Bridge 状态行', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      buildTestWidget(GenerateDock(viewModel: viewModel)),
+    );
     await tester.pumpAndSettle();
 
     // 状态行出现 ComfyUI 字样与服务地址，主按钮仍为「生成图片」

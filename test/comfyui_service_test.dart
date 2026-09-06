@@ -9,11 +9,7 @@ import 'package:novelai_harness/data/services/comfyui_service.dart';
 void main() {
   group('ComfyUiParamsPatch', () {
     test('仅序列化非空字段', () {
-      const patch = ComfyUiParamsPatch(
-        negative: 'lowres',
-        steps: 30,
-        cfg: 6.5,
-      );
+      const patch = ComfyUiParamsPatch(negative: 'lowres', steps: 30, cfg: 6.5);
       final json = patch.toJson();
       expect(json, containsPair('negative', 'lowres'));
       expect(json, containsPair('steps', 30));
@@ -21,6 +17,20 @@ void main() {
       expect(json.containsKey('seed'), isFalse);
       expect(json.containsKey('denoise'), isFalse);
       expect(patch.isEmpty, isFalse);
+    });
+
+    test('sampler_name/scheduler 映射为插件 PARAMS_FIELDS 字段名', () {
+      const patch = ComfyUiParamsPatch(
+        samplerName: 'dpmpp_2m',
+        scheduler: 'karras',
+      );
+      final json = patch.toJson();
+      expect(json, containsPair('sampler_name', 'dpmpp_2m'));
+      expect(json, containsPair('scheduler', 'karras'));
+      expect(patch.isEmpty, isFalse);
+
+      const empty = ComfyUiParamsPatch(samplerName: null, scheduler: null);
+      expect(empty.toJson(), isEmpty);
     });
 
     test('空补丁 isEmpty 且不下发', () async {
@@ -33,8 +43,12 @@ void main() {
   group('ComfyUiBridgeState', () {
     test('fromResponses 从三张注册表提取节点 id', () {
       final state = ComfyUiBridgeState.fromResponses(
-        prompts: {'prompts': {'10': 'a', '11': 'b'}},
-        resolutions: {'resolutions': {'20': {}}},
+        prompts: {
+          'prompts': {'10': 'a', '11': 'b'},
+        },
+        resolutions: {
+          'resolutions': {'20': {}},
+        },
         params: const {},
         baseUrl: 'http://127.0.0.1:8188',
       );
@@ -59,7 +73,9 @@ void main() {
           final path = request.url.path;
           if (path == '/pt/ai/prompt') {
             return http.Response(
-              jsonEncode({'prompts': {'1': 'hello'}}),
+              jsonEncode({
+                'prompts': {'1': 'hello'},
+              }),
               200,
             );
           }
@@ -98,10 +114,7 @@ void main() {
         baseUrl: 'http://127.0.0.1:8188',
         httpClient: MockClient((request) async {
           if (request.url.path == '/pt/ai/params') {
-            return http.Response(
-              jsonEncode({'error': 'not found'}),
-              404,
-            );
+            return http.Response(jsonEncode({'error': 'not found'}), 404);
           }
           return http.Response(
             jsonEncode({
@@ -159,6 +172,114 @@ void main() {
       expect(captured!['steps'], 30);
       expect(captured!['seed'], 42);
       expect(captured!.containsKey('cfg'), isFalse);
+    });
+
+    test('fetchOptionCatalog 优先解析 ParamsPanelPT 节点定义', () async {
+      final service = ComfyUiService(
+        baseUrl: 'http://127.0.0.1:8188',
+        httpClient: MockClient((request) async {
+          expect(request.url.path, '/object_info/ParamsPanelPT');
+          return http.Response(
+            jsonEncode({
+              'ParamsPanelPT': {
+                'input': {
+                  'required': {
+                    'negative': [
+                      'STRING',
+                      {'default': ''},
+                    ],
+                    'steps': [
+                      'INT',
+                      {'default': 28},
+                    ],
+                    'sampler_name': [
+                      ['euler', 'dpmpp_2m', 'dpmpp_sde'],
+                      {'tooltip': '...'},
+                    ],
+                    'scheduler': [
+                      ['normal', 'karras', 'exponential'],
+                      {'tooltip': '...'},
+                    ],
+                  },
+                },
+              },
+            }),
+            200,
+          );
+        }),
+      );
+
+      final catalog = await service.fetchOptionCatalog();
+      expect(catalog.samplers, ['euler', 'dpmpp_2m', 'dpmpp_sde']);
+      expect(catalog.schedulers, ['normal', 'karras', 'exponential']);
+      expect(catalog.isNotEmpty, isTrue);
+    });
+
+    test('旧版插件无采样器字段时回退 KSampler 节点定义', () async {
+      final paths = <String>[];
+      final service = ComfyUiService(
+        baseUrl: 'http://127.0.0.1:8188',
+        httpClient: MockClient((request) async {
+          paths.add(request.url.path);
+          if (request.url.path == '/object_info/ParamsPanelPT') {
+            // 旧版 ParamsPanelPT：没有 sampler_name/scheduler 字段
+            return http.Response(
+              jsonEncode({
+                'ParamsPanelPT': {
+                  'input': {
+                    'required': {
+                      'negative': [
+                        'STRING',
+                        {'default': ''},
+                      ],
+                    },
+                  },
+                },
+              }),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'KSampler': {
+                'input': {
+                  'required': {
+                    'sampler_name': [
+                      ['euler', 'heun'],
+                      {'tooltip': '...'},
+                    ],
+                    'scheduler': [
+                      ['normal', 'karras'],
+                      {'tooltip': '...'},
+                    ],
+                  },
+                },
+              },
+            }),
+            200,
+          );
+        }),
+      );
+
+      final catalog = await service.fetchOptionCatalog();
+      expect(paths, ['/object_info/ParamsPanelPT', '/object_info/KSampler']);
+      expect(catalog.samplers, ['euler', 'heun']);
+      expect(catalog.schedulers, ['normal', 'karras']);
+    });
+
+    test('两处都拿不到时抛出异常', () async {
+      final service = ComfyUiService(
+        baseUrl: 'http://127.0.0.1:8188',
+        httpClient: MockClient(
+          (request) async =>
+              http.Response(jsonEncode({'error': 'not found'}), 400),
+        ),
+      );
+
+      await expectLater(
+        service.fetchOptionCatalog(),
+        throwsA(isA<ComfyUiBridgeException>()),
+      );
     });
 
     test('setPrompt 与 setResolution 的请求体', () async {

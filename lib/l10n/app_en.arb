@@ -1334,6 +1334,10 @@
   "comfyBackendNovelAI": "NovelAI",
   "comfyBackendComfyUI": "ComfyUI",
   "comfyBridgeNoPanelHint": "The workflow has no Prompt Panel node; install the PromptToolkit plugin, add its nodes on the ComfyUI canvas, and keep the browser canvas open",
+  "comfySamplerLabel": "Sampler",
+  "comfySchedulerLabel": "Scheduler",
+  "comfyFollowWorkflow": "Follow workflow",
+  "comfyOptionsPendingHint": "Connect to ComfyUI to fetch the available samplers and schedulers",
 
   "settingsSectionComfy": "ComfyUI Mode",
   "settingsComfyEnabledTitle": "Enable ComfyUI mode",

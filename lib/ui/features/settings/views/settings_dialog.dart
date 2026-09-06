@@ -100,10 +100,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
       comfyUiEnabled: _generalDraft.comfyUiEnabled,
       comfyUiBaseUrl: _generalDraft.comfyBaseUrlController.text.trim(),
       comfyUiPromptNodeId: _generalDraft.comfyPromptNodeController.text.trim(),
-      comfyUiResolutionNodeId:
-          _generalDraft.comfyResolutionNodeController.text.trim(),
-      comfyUiParamsNodeId:
-          _generalDraft.comfyParamsNodeController.text.trim(),
+      comfyUiResolutionNodeId: _generalDraft.comfyResolutionNodeController.text
+          .trim(),
+      comfyUiParamsNodeId: _generalDraft.comfyParamsNodeController.text.trim(),
       llmProviders: _modelsDraft.providers,
       activeLlmProviderId: _modelsDraft.selectedProviderId,
       imageEditProviderId: _modelsDraft.imageEditProviderId,

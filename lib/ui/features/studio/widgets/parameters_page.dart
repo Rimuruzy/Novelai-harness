@@ -18,16 +18,18 @@ import 'resolution_pad_picker.dart';
 import 'studio_shared.dart';
 import 'watermark_pad_picker.dart';
 
-String _seedModeShortLabel(AppLocalizations l10n, NaiSeedMode mode) => switch (mode) {
-  NaiSeedMode.random => l10n.paramsSeedModeRandomShort,
-  NaiSeedMode.increase => l10n.paramsSeedModeIncreaseShort,
-  NaiSeedMode.fixed => l10n.paramsSeedModeFixedShort,
-};
+String _seedModeShortLabel(AppLocalizations l10n, NaiSeedMode mode) =>
+    switch (mode) {
+      NaiSeedMode.random => l10n.paramsSeedModeRandomShort,
+      NaiSeedMode.increase => l10n.paramsSeedModeIncreaseShort,
+      NaiSeedMode.fixed => l10n.paramsSeedModeFixedShort,
+    };
 
-String _seedTimingLabel(AppLocalizations l10n, NaiSeedTiming timing) => switch (timing) {
-  NaiSeedTiming.before => l10n.paramsSeedTimingBefore,
-  NaiSeedTiming.after => l10n.paramsSeedTimingAfter,
-};
+String _seedTimingLabel(AppLocalizations l10n, NaiSeedTiming timing) =>
+    switch (timing) {
+      NaiSeedTiming.before => l10n.paramsSeedTimingBefore,
+      NaiSeedTiming.after => l10n.paramsSeedTimingAfter,
+    };
 
 /// 侧边栏页面一：参数设置 (模型 / 分辨率 / 采样属性 / 高级选项)
 class ParametersPage extends StatefulWidget {
@@ -90,7 +92,10 @@ class _ParametersPageState extends State<ParametersPage> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            PageHeader(title: l10n.paramsPageTitle, subtitle: l10n.paramsPageSubtitle),
+            PageHeader(
+              title: l10n.paramsPageTitle,
+              subtitle: l10n.paramsPageSubtitle,
+            ),
             const SizedBox(height: 16),
 
             // 0. 生成后端切换 (NovelAI 官方接口 ↔ ComfyUI AI Bridge)
@@ -107,8 +112,7 @@ class _ParametersPageState extends State<ParametersPage> {
               ],
               selectedValue: viewModel.isComfyUiMode ? 'comfyui' : 'novelai',
               expand: true,
-              onValueChanged: (v) =>
-                  viewModel.setComfyUiMode(v == 'comfyui'),
+              onValueChanged: (v) => viewModel.setComfyUiMode(v == 'comfyui'),
             ),
             const SizedBox(height: 16),
 
@@ -164,13 +168,19 @@ class _ParametersPageState extends State<ParametersPage> {
             ),
             const SizedBox(height: 18),
 
-            // 5. Seed & Sampler 两栏 (ComfyUI 模式下采样器由工作流决定，只留 Seed)
+            // 5. Seed & Sampler 两栏 (ComfyUI 模式下采样器由下方 ComfyUI 采样区块接管)
             _SeedAndSamplerRow(
               viewModel: viewModel,
               seedController: _seedController,
               showSampler: !viewModel.isComfyUiMode,
             ),
             const SizedBox(height: 14),
+
+            // 5.5 ComfyUI 采样区块：采样器与调度器 (选项实时来自服务器 /object_info)
+            if (viewModel.isComfyUiMode) ...[
+              _ComfySamplingSection(viewModel: viewModel),
+              const SizedBox(height: 14),
+            ],
 
             // 6. Advanced Settings 折叠面板 (NovelAI 专属高级选项)
             if (!viewModel.isComfyUiMode)
@@ -341,8 +351,9 @@ class _SeedAndSamplerRowState extends State<_SeedAndSamplerRow> {
                   items: NaiSampler.values,
                   labelOf: (s) => s.label,
                   iconOf: (s) => Icons.tune_rounded,
-                  onChanged: (s) =>
-                      widget.viewModel.updateParams(params.copyWith(sampler: s)),
+                  onChanged: (s) => widget.viewModel.updateParams(
+                    params.copyWith(sampler: s),
+                  ),
                 ),
               ],
             ),
@@ -860,6 +871,86 @@ class _ComfyConnectionCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// ComfyUI 模式采样区块：采样器与调度器两栏下拉。
+///
+/// 可选项实时来自服务器 `/object_info` (连接成功后自动拉取)；
+/// 首项「跟随工作流」表示不下发该字段，保留画布节点自身的设置。
+class _ComfySamplingSection extends StatelessWidget {
+  final StudioViewModel viewModel;
+
+  const _ComfySamplingSection({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final catalog = viewModel.comfyOptionCatalog;
+
+    if (catalog == null || catalog.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.cardBackground,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: colors.borderDefault),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.tune_rounded, size: 14, color: colors.textMuted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                l10n.comfyOptionsPendingHint,
+                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(l10n.comfySamplerLabel),
+              const SizedBox(height: 8),
+              AppDropdown<String>.simple(
+                value: viewModel.comfySampler,
+                items: ['', ...catalog.samplers],
+                labelOf: (v) => v.isEmpty ? l10n.comfyFollowWorkflow : v,
+                iconOf: (_) => Icons.auto_awesome_outlined,
+                onChanged: viewModel.setComfySampler,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(l10n.comfySchedulerLabel),
+              const SizedBox(height: 8),
+              AppDropdown<String>.simple(
+                value: viewModel.comfyScheduler,
+                items: ['', ...catalog.schedulers],
+                labelOf: (v) => v.isEmpty ? l10n.comfyFollowWorkflow : v,
+                iconOf: (_) => Icons.graphic_eq_rounded,
+                onChanged: viewModel.setComfyScheduler,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

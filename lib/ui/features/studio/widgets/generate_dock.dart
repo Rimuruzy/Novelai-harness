@@ -81,7 +81,8 @@ class GenerateDock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ComfyUI 模式：账号栏换成 Bridge 连接状态 (无点数概念)
-          if (viewModel.isComfyUiMode) _ComfyStatusRow(viewModel: viewModel)
+          if (viewModel.isComfyUiMode)
+            _ComfyStatusRow(viewModel: viewModel)
           else if (info == null)
             Row(
               children: [
@@ -277,10 +278,7 @@ class _ComfyStatusRow extends StatelessWidget {
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: statusColor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
         Text(

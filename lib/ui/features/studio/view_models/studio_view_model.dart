@@ -230,6 +230,17 @@ mixin _StudioCore on ChangeNotifier {
   ComfyUiBridgeState? get comfyBridgeState;
   String? get comfyLastError;
 
+  /// ComfyUI 服务器实时可用选项清单 (采样器/调度器；连接成功后拉取)
+  ComfyUiOptionCatalog? get comfyOptionCatalog;
+
+  /// ComfyUI 采样器 / 噪声调度器 (空 = 跟随工作流，不下发)
+  String get comfySampler;
+  String get comfyScheduler;
+
+  /// 设置 ComfyUI 采样器 / 调度器 (传空字符串回到跟随工作流)
+  Future<void> setComfySampler(String value);
+  Future<void> setComfyScheduler(String value);
+
   /// 当前工作台参数的预计 Anlas 消耗 (账号未加载时按非 Opus 保守估算)；
   /// ComfyUI 模式下本地不产生 Anlas 消耗，恒为 0
   int get estimatedGenerationCost => isComfyUiMode
@@ -419,6 +430,13 @@ mixin _StudioCore on ChangeNotifier {
 
   /// 刷新 ComfyUI Bridge 连接状态与节点注册快照
   Future<void> refreshComfyUiStatus();
+
+  /// 重新拉取 ComfyUI 可用采样器/调度器清单 (失败静默保持旧值)
+  Future<void> refreshComfyUiOptions();
+
+  /// 测试钩子：直接注入模拟的采样器/调度器清单 (绕过网络)
+  @visibleForTesting
+  void setComfyOptionCatalogForTesting(ComfyUiOptionCatalog? catalog);
 
   /// 切换 ComfyUI 模式开关
   Future<void> setComfyUiMode(bool enabled);

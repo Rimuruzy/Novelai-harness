@@ -10,6 +10,7 @@ mixin _StudioComfyMixin on _StudioCore {
   ComfyUiBridgeState? _comfyBridgeState;
   ComfyUiConnectionStatus _comfyStatus = ComfyUiConnectionStatus.disconnected;
   String? _comfyLastError;
+  ComfyUiOptionCatalog? _comfyOptions;
   bool _comfyAbortRequested = false;
 
   /// 出图轮询间隔 (Bridge 图片注册是执行完成时一次性的，秒级足够)
@@ -26,6 +27,23 @@ mixin _StudioComfyMixin on _StudioCore {
 
   @override
   String? get comfyLastError => _comfyLastError;
+
+  @override
+  ComfyUiOptionCatalog? get comfyOptionCatalog => _comfyOptions;
+
+  @override
+  String get comfySampler => _config.comfyUiSampler;
+
+  @override
+  String get comfyScheduler => _config.comfyUiScheduler;
+
+  @override
+  Future<void> setComfySampler(String value) =>
+      updateConfig(_config.copyWith(comfyUiSampler: value));
+
+  @override
+  Future<void> setComfyScheduler(String value) =>
+      updateConfig(_config.copyWith(comfyUiScheduler: value));
 
   /// 解析本次驱动的目标节点 id (显式配置优先，缺省取注册表第一个)
   ({String promptNodeId, String? resolutionNodeId, String? paramsNodeId})
@@ -71,6 +89,8 @@ mixin _StudioComfyMixin on _StudioCore {
       _comfyBridgeState = await _ensureComfyService().fetchBridgeState();
       _comfyStatus = ComfyUiConnectionStatus.connected;
       _comfyLastError = null;
+      // 连接成功后顺带刷新可用采样器/调度器清单；失败静默保持旧值
+      await refreshComfyUiOptions();
     } on ComfyUiBridgeException catch (e) {
       _comfyBridgeState = null;
       _comfyStatus = ComfyUiConnectionStatus.disconnected;
@@ -78,6 +98,24 @@ mixin _StudioComfyMixin on _StudioCore {
     } finally {
       notifyListeners();
     }
+  }
+
+  /// 重新拉取 ComfyUI 可用采样器/调度器清单 (失败静默保持旧值)
+  @override
+  Future<void> refreshComfyUiOptions() async {
+    if (!_config.comfyUiEnabled) return;
+    try {
+      _comfyOptions = await _ensureComfyService().fetchOptionCatalog();
+    } on ComfyUiBridgeException {
+      // 旧版插件无 /object_info 或节点未注册时保持 null，不阻断主流程
+    }
+  }
+
+  /// 测试钩子：直接注入模拟的采样器/调度器清单 (绕过网络)
+  @override
+  void setComfyOptionCatalogForTesting(ComfyUiOptionCatalog? catalog) {
+    _comfyOptions = catalog;
+    notifyListeners();
   }
 
   /// 切换 ComfyUI 模式开关 (经 updateConfig 统一持久化)
@@ -157,6 +195,8 @@ mixin _StudioComfyMixin on _StudioCore {
       }
       final paramsNodeId = targets.paramsNodeId;
       if (paramsNodeId != null) {
+        final sampler = _config.comfyUiSampler.trim();
+        final scheduler = _config.comfyUiScheduler.trim();
         await service.setParams(
           paramsNodeId,
           ComfyUiParamsPatch(
@@ -164,6 +204,8 @@ mixin _StudioComfyMixin on _StudioCore {
             steps: _params.steps,
             cfg: _params.scale,
             seed: seed,
+            samplerName: sampler.isEmpty ? null : sampler,
+            scheduler: scheduler.isEmpty ? null : scheduler,
           ),
         );
       }

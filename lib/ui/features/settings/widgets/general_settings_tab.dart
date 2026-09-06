@@ -44,10 +44,10 @@ class GeneralSettingsDraft {
       showTagTranslations = config.showTagTranslations,
       showTagCategoryColors = config.showTagCategoryColors,
       enableTagDictionaryAutoUpdate = config.enableTagDictionaryAutoUpdate,
-    enableImagePersistence = config.enableImagePersistence,
-    maxPersistentImages = config.maxPersistentImages,
-    autoSaveImages = config.autoSaveImages,
-    comfyUiEnabled = config.comfyUiEnabled;
+      enableImagePersistence = config.enableImagePersistence,
+      maxPersistentImages = config.maxPersistentImages,
+      autoSaveImages = config.autoSaveImages,
+      comfyUiEnabled = config.comfyUiEnabled;
 
   final TextEditingController naiKeyController;
   final TextEditingController saveDirController;

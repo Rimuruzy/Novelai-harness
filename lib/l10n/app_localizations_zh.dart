@@ -2980,6 +2980,18 @@ class AppLocalizationsZh extends AppLocalizations {
       '工作流缺少 Prompt Panel 节点；需安装 PromptToolkit 插件并在 ComfyUI 画布中添加节点后保持浏览器画布打开';
 
   @override
+  String get comfySamplerLabel => '采样器';
+
+  @override
+  String get comfySchedulerLabel => '调度器';
+
+  @override
+  String get comfyFollowWorkflow => '跟随工作流';
+
+  @override
+  String get comfyOptionsPendingHint => '连接 ComfyUI 后自动获取可用采样器与调度器';
+
+  @override
   String get settingsSectionComfy => 'ComfyUI 模式';
 
   @override

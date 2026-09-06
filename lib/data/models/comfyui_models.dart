@@ -54,9 +54,9 @@ class ComfyUiBridgeState {
     required String baseUrl,
   }) {
     List<String> idsOf(Map<String, dynamic> body, String key) =>
-        (body[key] as Map<String, dynamic>? ?? const {})
-            .keys
-            .toList(growable: false);
+        (body[key] as Map<String, dynamic>? ?? const {}).keys.toList(
+          growable: false,
+        );
     return ComfyUiBridgeState(
       promptNodeIds: idsOf(prompts, 'prompts'),
       resolutionNodeIds: idsOf(resolutions, 'resolutions'),
@@ -69,12 +69,16 @@ class ComfyUiBridgeState {
 /// ParamsPanelPT 的一次参数下发补丁 (字段为 null 表示不修改该 widget)。
 ///
 /// 字段名与插件端 `PARAMS_FIELDS` 一一对应，序列化时仅携带非空字段。
+/// [samplerName] / [scheduler] 对应 ComfyUI KSampler 的同名组合 widget，
+/// 可选值实时来自服务器采样器注册表 (见 [ComfyUiOptionCatalog])。
 class ComfyUiParamsPatch {
   final String? negative;
   final int? steps;
   final double? cfg;
   final int? seed;
   final double? denoise;
+  final String? samplerName;
+  final String? scheduler;
 
   const ComfyUiParamsPatch({
     this.negative,
@@ -82,6 +86,8 @@ class ComfyUiParamsPatch {
     this.cfg,
     this.seed,
     this.denoise,
+    this.samplerName,
+    this.scheduler,
   });
 
   bool get isEmpty =>
@@ -89,7 +95,9 @@ class ComfyUiParamsPatch {
       steps == null &&
       cfg == null &&
       seed == null &&
-      denoise == null;
+      denoise == null &&
+      samplerName == null &&
+      scheduler == null;
 
   Map<String, dynamic> toJson() => {
     if (negative != null) 'negative': negative,
@@ -97,7 +105,32 @@ class ComfyUiParamsPatch {
     if (cfg != null) 'cfg': cfg,
     if (seed != null) 'seed': seed,
     if (denoise != null) 'denoise': denoise,
+    if (samplerName != null) 'sampler_name': samplerName,
+    if (scheduler != null) 'scheduler': scheduler,
   };
+}
+
+/// ComfyUI 服务器当前可用的采样器与噪声调度器清单。
+///
+/// 由标准 `/object_info` 端点实时拉取 (优先 ParamsPanelPT 节点定义，
+/// 兼容回退 KSampler)，因此自定义节点注册的扩展采样器也会出现在这里。
+class ComfyUiOptionCatalog {
+  /// KSampler `sampler_name` 可选值 (如 euler / dpmpp_2m / ...)
+  final List<String> samplers;
+
+  /// KSampler `scheduler` 可选值 (如 normal / karras / exponential / ...)
+  final List<String> schedulers;
+
+  const ComfyUiOptionCatalog({
+    this.samplers = const [],
+    this.schedulers = const [],
+  });
+
+  static const ComfyUiOptionCatalog empty = ComfyUiOptionCatalog();
+
+  bool get isEmpty => samplers.isEmpty && schedulers.isEmpty;
+
+  bool get isNotEmpty => !isEmpty;
 }
 
 /// AIImageOutput 发布到 Bridge 的单张图片条目 (newest first 列表的元素)。
