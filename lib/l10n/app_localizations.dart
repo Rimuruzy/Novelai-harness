@@ -362,6 +362,60 @@ abstract class AppLocalizations {
   /// **'水果沙拉'**
   String get accentVariantFruitSalad;
 
+  /// No description provided for @settingsAccentSeed.
+  ///
+  /// In zh, this message translates to:
+  /// **'种子色'**
+  String get settingsAccentSeed;
+
+  /// No description provided for @settingsAccentSeedSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动模式下生效：点击打开取色器自由指定任意颜色'**
+  String get settingsAccentSeedSubtitle;
+
+  /// No description provided for @colorPickerTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择颜色'**
+  String get colorPickerTitle;
+
+  /// No description provided for @colorPickerHue.
+  ///
+  /// In zh, this message translates to:
+  /// **'色相'**
+  String get colorPickerHue;
+
+  /// No description provided for @colorPickerSaturation.
+  ///
+  /// In zh, this message translates to:
+  /// **'饱和度'**
+  String get colorPickerSaturation;
+
+  /// No description provided for @colorPickerBrightness.
+  ///
+  /// In zh, this message translates to:
+  /// **'明度'**
+  String get colorPickerBrightness;
+
+  /// No description provided for @colorPickerPresets.
+  ///
+  /// In zh, this message translates to:
+  /// **'预设颜色'**
+  String get colorPickerPresets;
+
+  /// No description provided for @colorPickerHexLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'十六进制色值'**
+  String get colorPickerHexLabel;
+
+  /// No description provided for @colorPickerHexInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'色值格式无效，请输入 #RRGGBB'**
+  String get colorPickerHexInvalid;
+
   /// No description provided for @settingsLanguage.
   ///
   /// In zh, this message translates to:
@@ -2905,6 +2959,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'点击色块设为主题强调色，右键复制色值'**
   String get paletteHintManual;
+
+  /// No description provided for @paletteCustomColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义颜色'**
+  String get paletteCustomColor;
 
   /// No description provided for @paletteAppliedAccent.
   ///

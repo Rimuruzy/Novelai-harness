@@ -47,8 +47,7 @@ class AccentThemeState {
       other.seed?.toARGB32() == seed?.toARGB32();
 
   @override
-  int get hashCode =>
-      Object.hash(mode, variant, seed?.toARGB32());
+  int get hashCode => Object.hash(mode, variant, seed?.toARGB32());
 }
 
 class AppAccentController {

@@ -83,6 +83,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       themeMode: _generalDraft.themeMode,
       accentMode: _generalDraft.accentMode,
       accentVariant: _generalDraft.accentVariant,
+      accentSeedColor: _generalDraft.accentSeedColor ??
+          widget.viewModel.config.accentSeedColor,
       localePreference: _generalDraft.localePreference,
       uiZoom: _generalDraft.uiZoom,
       enableStreamPreview: _generalDraft.enableStreamPreview,

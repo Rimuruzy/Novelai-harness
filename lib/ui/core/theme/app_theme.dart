@@ -82,12 +82,14 @@ class AppTheme {
   static ThemeData darkThemeFor(AccentThemeState? accent) =>
       _buildAccent(Brightness.dark, accent);
 
-  static ThemeData _buildAccent(Brightness brightness, AccentThemeState? accent) =>
-      buildTheme(
-        brightness,
-        seed: accent?.seed,
-        variant: accent?.variant ?? AppAccentVariant.tonalSpot,
-      );
+  static ThemeData _buildAccent(
+    Brightness brightness,
+    AccentThemeState? accent,
+  ) => buildTheme(
+    brightness,
+    seed: accent?.seed,
+    variant: accent?.variant ?? AppAccentVariant.tonalSpot,
+  );
 
   /// 通用主题构建：[seed] 非空时经 MD3 DynamicScheme 推导强调色族注入
   static ThemeData buildTheme(
@@ -96,7 +98,9 @@ class AppTheme {
     AppAccentVariant variant = AppAccentVariant.tonalSpot,
   }) {
     final isDark = brightness == Brightness.dark;
-    final baseColors = isDark ? AppColorsExtension.dark : AppColorsExtension.light;
+    final baseColors = isDark
+        ? AppColorsExtension.dark
+        : AppColorsExtension.light;
     final M3AccentTokens? tokens = seed == null
         ? null
         : buildM3AccentTokens(
@@ -236,12 +240,13 @@ class AppTheme {
   ) {
     if (tokens == null) return base;
     return base.copyWith(
-      primary: tokens.primary,
-      primaryLight: tokens.primaryLight,
-      primaryDark: tokens.primaryDark,
-      primaryTint: tokens.primaryTint,
-      accent: tokens.primary,
-      borderFocus: tokens.primary,
-    ) as AppColorsExtension;
+          primary: tokens.primary,
+          primaryLight: tokens.primaryLight,
+          primaryDark: tokens.primaryDark,
+          primaryTint: tokens.primaryTint,
+          accent: tokens.primary,
+          borderFocus: tokens.primary,
+        )
+        as AppColorsExtension;
   }
 }

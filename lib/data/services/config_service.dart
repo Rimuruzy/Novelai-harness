@@ -778,10 +778,7 @@ class ConfigService {
       _keyThemeMode,
       themeModePreferenceStorage(config.themeMode),
     );
-    await prefs.setString(
-      _keyAccentMode,
-      accentModeStorage(config.accentMode),
-    );
+    await prefs.setString(_keyAccentMode, accentModeStorage(config.accentMode));
     await prefs.setString(
       _keyAccentVariant,
       accentVariantStorage(config.accentVariant),

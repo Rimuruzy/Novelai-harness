@@ -35,10 +35,7 @@ class PaletteService {
   ///
   /// [cacheKey] 传图片唯一标识 (如 image.id) 时启用 LRU 缓存，
   /// 同一张图重复查看调色盘/自适应取色零开销。
-  Future<ImagePalette?> extract(
-    Uint8List bytes, {
-    String? cacheKey,
-  }) async {
+  Future<ImagePalette?> extract(Uint8List bytes, {String? cacheKey}) async {
     if (cacheKey != null) {
       final cached = _cache[cacheKey];
       if (cached != null) return cached;
@@ -72,14 +69,14 @@ class PaletteService {
 
     // 降采样：最长边压到 sampleLongestSide，保持纵横比
     var image = decoded;
-    final longest = image.width >= image.height
-        ? image.width
-        : image.height;
+    final longest = image.width >= image.height ? image.width : image.height;
     if (longest > sampleLongestSide) {
       final scale = sampleLongestSide / longest;
       final targetW = (image.width * scale).round().clamp(1, sampleLongestSide);
-      final targetH =
-          (image.height * scale).round().clamp(1, sampleLongestSide);
+      final targetH = (image.height * scale).round().clamp(
+        1,
+        sampleLongestSide,
+      );
       image = img.copyResize(image, width: targetW, height: targetH);
     }
 
@@ -110,10 +107,7 @@ class PaletteService {
 
     final colors = [
       for (final argb in scored)
-        PaletteColor(
-          argb: argb,
-          share: (clusterCounts[argb] ?? 0) / total,
-        ),
+        PaletteColor(argb: argb, share: (clusterCounts[argb] ?? 0) / total),
     ];
     return ImagePalette(seed: scored.first, colors: colors);
   }

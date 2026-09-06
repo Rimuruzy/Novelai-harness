@@ -144,6 +144,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accentVariantFruitSalad => 'Fruit Salad';
 
   @override
+  String get settingsAccentSeed => 'Seed Color';
+
+  @override
+  String get settingsAccentSeedSubtitle =>
+      'Applies in Manual mode: open the picker to choose any color';
+
+  @override
+  String get colorPickerTitle => 'Pick a Color';
+
+  @override
+  String get colorPickerHue => 'Hue';
+
+  @override
+  String get colorPickerSaturation => 'Saturation';
+
+  @override
+  String get colorPickerBrightness => 'Brightness';
+
+  @override
+  String get colorPickerPresets => 'Presets';
+
+  @override
+  String get colorPickerHexLabel => 'Hex value';
+
+  @override
+  String get colorPickerHexInvalid => 'Invalid color, expected #RRGGBB';
+
+  @override
   String get settingsLanguage => 'Language';
 
   @override
@@ -1574,6 +1602,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get paletteHintManual =>
       'Click a swatch to set it as the theme accent; right-click to copy the hex value';
+
+  @override
+  String get paletteCustomColor => 'Custom Color';
 
   @override
   String get paletteAppliedAccent => 'Set as theme accent color';

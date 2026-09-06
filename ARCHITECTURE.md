@@ -138,7 +138,8 @@ Novelai-harness/
 │       │       ├── resizable_split_view.dart   # 可自由拖动分割线的三栏自适应布局容器
 │       │       ├── custom_title_bar.dart       # 顶部沉浸式自定义标题栏 (窗口拖拽与最小化/最大化/关闭)
 │       │       ├── context_menu.dart           # Notion 风格右键菜单 (图标、快捷键与分隔线)
-│       │       └── smooth_scroll_controller.dart # 平滑滚轮控制器 (重写 pointerScroll 为 160ms 平滑滑动)
+│       │       ├── app_color_picker_dialog.dart   # 通用 HSV 取色器弹窗 (渐变滑杆/预设色板/十六进制输入)
+│       │   └── smooth_scroll_controller.dart # 平滑滚轮控制器 (重写 pointerScroll 为 160ms 平滑滑动)
 │       └── features/
 │           ├── settings/                       # 全局配置管理中枢
 │           │   ├── views/

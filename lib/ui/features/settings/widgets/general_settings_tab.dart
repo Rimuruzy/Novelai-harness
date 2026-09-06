@@ -6,7 +6,10 @@ import '../../../../data/services/tag_dictionary_service.dart';
 import '../../../../data/services/tag_dictionary_update_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_color_picker_dialog.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_setting_tile.dart';
@@ -21,6 +24,7 @@ class GeneralSettingsDraft {
       themeMode = config.themeMode,
       accentMode = config.accentMode,
       accentVariant = config.accentVariant,
+      accentSeedColor = config.accentSeedColor,
       localePreference = config.localePreference,
       uiZoom = config.uiZoom,
       enableStreamPreview = config.enableStreamPreview,
@@ -44,6 +48,9 @@ class GeneralSettingsDraft {
 
   /// MD3 取色方案 (强调色非默认时生效)，保存时聚合进 AppConfig
   AppAccentVariant accentVariant;
+
+  /// 手动模式种子色 (#RRGGBB 文本，null = 未指定)，保存时聚合进 AppConfig
+  String? accentSeedColor;
 
   /// 语言偏好 (跟随系统/中文/English)，保存时由 SettingsDialog 聚合进 AppConfig
   AppLocalePreference localePreference;
@@ -184,6 +191,29 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
               },
               width: 130,
               onChanged: (mode) => setState(() => _draft.accentMode = mode),
+            ),
+          ),
+          AppSettingTile(
+            title: l10n.settingsAccentSeed,
+            subtitle: l10n.settingsAccentSeedSubtitle,
+            control: _AccentSeedSwatch(
+              color: _seedColorOf(_draft.accentSeedColor) ??
+                  const Color(0xFF0075DE),
+              onTap: () async {
+                final picked = await AppColorPickerDialog.show(
+                  context,
+                  initialColor:
+                      _seedColorOf(_draft.accentSeedColor) ??
+                      const Color(0xFF0075DE),
+                );
+                if (picked == null) return;
+                setState(() {
+                  _draft.accentSeedColor = seedColorText(
+                    picked.toARGB32(),
+                  );
+                  _draft.accentMode = AppAccentMode.manual;
+                });
+              },
             ),
           ),
           AppSettingTile(
@@ -368,6 +398,62 @@ class _GeneralSettingsTabState extends State<GeneralSettingsTab> {
             onChanged: (val) => setState(() => _draft.opusFreeMode = val),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 存储文本 (#RRGGBB) → Color；null/非法返回 null
+Color? _seedColorOf(String? text) {
+  final argb = parseSeedColorText(text);
+  return argb == null ? null : Color(argb);
+}
+
+/// 种子色色块控件 (点击打开取色器)
+///
+/// 展示当前种子色 + 角标编辑图标，点击触发回调；
+/// 无业务状态，取色器由调用方打开。
+class _AccentSeedSwatch extends StatelessWidget {
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AccentSeedSwatch({required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Tooltip(
+      message: context.l10n.settingsAccentSeed,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: colors.borderDefault),
+            ),
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: colors.cardBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(color: colors.borderDefault),
+                ),
+                child: Icon(
+                  Icons.colorize,
+                  size: 10,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

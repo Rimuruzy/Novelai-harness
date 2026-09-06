@@ -11,6 +11,8 @@ import '../../../core/theme/app_accent_controller.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/md3_accent.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_action_button.dart';
+import '../../../core/widgets/app_color_picker_dialog.dart';
 import '../../../core/widgets/app_dialog_scaffold.dart';
 import '../view_models/studio_view_model.dart';
 import 'image_canvas_actions.dart';
@@ -59,8 +61,8 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
 
   Future<void> _extract() async {
     final image = widget.image;
-    final bytes = await widget.viewModel.ensureImageLoaded(image) ??
-        image.bytes;
+    final bytes =
+        await widget.viewModel.ensureImageLoaded(image) ?? image.bytes;
     if (!mounted) return;
     if (bytes.isEmpty) {
       setState(() {
@@ -113,10 +115,12 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
               ),
             )
           : _error != null
-          ? Center(child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(_error!, style: context.typography.bodySmall),
-            ))
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(_error!, style: context.typography.bodySmall),
+              ),
+            )
           : SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.xl),
@@ -124,6 +128,21 @@ class _PaletteInspectorDialogState extends State<PaletteInspectorDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSwatchGrid(context),
+                    const SizedBox(height: AppSpacing.lg),
+                    AppActionButton(
+                      label: l10n.paletteCustomColor,
+                      icon: Icons.colorize,
+                      onPressed: () async {
+                        final picked = await AppColorPickerDialog.show(
+                          context,
+                          initialColor: Color(
+                            _palette?.seed ?? 0xFF0075DE,
+                          ),
+                        );
+                        if (picked == null) return;
+                        _applySeed(picked.toARGB32());
+                      },
+                    ),
                     const SizedBox(height: AppSpacing.xl),
                     if (_palette != null)
                       _buildM3Preview(context, _palette!, accentState.variant),
@@ -321,4 +340,3 @@ class _M3PreviewRow extends StatelessWidget {
     );
   }
 }
-

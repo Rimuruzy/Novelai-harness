@@ -142,6 +142,33 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accentVariantFruitSalad => '水果沙拉';
 
   @override
+  String get settingsAccentSeed => '种子色';
+
+  @override
+  String get settingsAccentSeedSubtitle => '手动模式下生效：点击打开取色器自由指定任意颜色';
+
+  @override
+  String get colorPickerTitle => '选择颜色';
+
+  @override
+  String get colorPickerHue => '色相';
+
+  @override
+  String get colorPickerSaturation => '饱和度';
+
+  @override
+  String get colorPickerBrightness => '明度';
+
+  @override
+  String get colorPickerPresets => '预设颜色';
+
+  @override
+  String get colorPickerHexLabel => '十六进制色值';
+
+  @override
+  String get colorPickerHexInvalid => '色值格式无效，请输入 #RRGGBB';
+
+  @override
   String get settingsLanguage => '语言';
 
   @override
@@ -1503,6 +1530,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get paletteHintManual => '点击色块设为主题强调色，右键复制色值';
+
+  @override
+  String get paletteCustomColor => '自定义颜色';
 
   @override
   String get paletteAppliedAccent => '已设为主题强调色';

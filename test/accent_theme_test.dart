@@ -164,10 +164,7 @@ void main() {
         variant: AppAccentVariant.tonalSpot,
       );
       // 亮色主色较深、暗色主色较浅
-      expect(
-        _luminance(light.primary),
-        lessThan(_luminance(dark.primary)),
-      );
+      expect(_luminance(light.primary), lessThan(_luminance(dark.primary)));
       // 亮色底色应为高明度浅色
       expect(_luminance(light.primaryTint), greaterThan(0.8));
       // 全部不透明

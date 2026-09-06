@@ -122,6 +122,7 @@ mixin _StudioCore on ChangeNotifier {
   bool _isThinkingExpanded = false;
   NaiGeneratedImage? _selectedImage;
   bool _hasUnseenLatest = false;
+
   /// 自适应取色：最近一次已提取主色的图片 id (去重，避免重复 Isolate 提取)
   String? _lastAccentImageId;
   String? _statusMessage;
