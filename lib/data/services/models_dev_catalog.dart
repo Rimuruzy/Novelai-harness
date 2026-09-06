@@ -185,17 +185,26 @@ class ModelsDevCatalog {
     final levels = <ThinkingEffort>[];
     for (final value in efforts) {
       final ThinkingEffort? level = switch (value) {
+        'none' => ThinkingEffort.none,
         'minimal' || 'low' => ThinkingEffort.low,
         'medium' => ThinkingEffort.medium,
-        'high' || 'xhigh' || 'max' => ThinkingEffort.high,
+        'high' => ThinkingEffort.high,
+        'xhigh' => ThinkingEffort.xhigh,
+        'max' => ThinkingEffort.max,
         _ => null,
       };
       if (level != null && !levels.contains(level)) levels.add(level);
     }
-    // 保持 low -> medium -> high 的稳定顺序
+    // 保持 none -> low -> medium -> high -> xhigh -> max 的稳定顺序
     levels.sort((a, b) => a.index.compareTo(b.index));
     return levels;
   }
+
+  /// 仅用于测试：暴露私有 effort 映射逻辑
+  @visibleForTesting
+  static List<ThinkingEffort> parseThinkingLevelsForTest(
+    dynamic reasoningOptions,
+  ) => _parseThinkingLevels(reasoningOptions);
 
   /// 按模型 id 查询能力元数据
   ///

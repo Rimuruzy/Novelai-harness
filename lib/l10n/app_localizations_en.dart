@@ -2307,7 +2307,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatThinkingLabel => 'Thinking:';
 
   @override
-  String get chatThinkingEffortOff => 'Off';
+  String get chatThinkingEffortNone => 'None';
 
   @override
   String get chatThinkingEffortLow => 'Low';
@@ -2317,6 +2317,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatThinkingEffortHigh => 'High';
+
+  @override
+  String get chatThinkingEffortXHigh => 'XHigh';
+
+  @override
+  String get chatThinkingEffortMax => 'Max';
 
   @override
   String get chatSessionUsageEmpty =>

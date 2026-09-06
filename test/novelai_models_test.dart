@@ -628,6 +628,40 @@ void main() {
         equals('https://api.example.com/v1/chat/completions'),
       );
     });
+
+    test('ThinkingEffort 六档对齐与旧 off 档位兼容回读', () {
+      // 通用六档: none / low / medium / high / xhigh / max
+      expect(ThinkingEffort.values.map((e) => e.id).toList(), [
+        'none',
+        'low',
+        'medium',
+        'high',
+        'xhigh',
+        'max',
+      ]);
+      // 旧配置持久化的 'off' 统一回读为 none，其余未知值回退 medium
+      expect(ThinkingEffort.fromId('off'), equals(ThinkingEffort.none));
+      expect(ThinkingEffort.fromId('xhigh'), equals(ThinkingEffort.xhigh));
+      expect(ThinkingEffort.fromId('max'), equals(ThinkingEffort.max));
+      expect(ThinkingEffort.fromId('nonsense'), equals(ThinkingEffort.medium));
+
+      // 不支持思考梯度的模型默认档位为 none，推理模型回退 high
+      expect(
+        const LlmModelConfig(id: 'm', name: 'm').defaultThinkingEffort,
+        equals(ThinkingEffort.none),
+      );
+      expect(
+        const LlmModelConfig(
+          id: 'r',
+          name: 'r',
+          reasoning: true,
+        ).defaultThinkingEffort,
+        equals(ThinkingEffort.high),
+      );
+
+      // 未显式指定温度时默认 1.0 (创意生成默认档)
+      expect(const LlmModelConfig(id: 't', name: 't').temperature, equals(1.0));
+    });
   });
 
   group('NaiGeneratedImage 历史角标与序列化', () {

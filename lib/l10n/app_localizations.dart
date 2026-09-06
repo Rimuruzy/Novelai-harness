@@ -4160,29 +4160,41 @@ abstract class AppLocalizations {
   /// **'思考:'**
   String get chatThinkingLabel;
 
-  /// No description provided for @chatThinkingEffortOff.
+  /// No description provided for @chatThinkingEffortNone.
   ///
   /// In zh, this message translates to:
-  /// **'关'**
-  String get chatThinkingEffortOff;
+  /// **'None'**
+  String get chatThinkingEffortNone;
 
   /// No description provided for @chatThinkingEffortLow.
   ///
   /// In zh, this message translates to:
-  /// **'低'**
+  /// **'Low'**
   String get chatThinkingEffortLow;
 
   /// No description provided for @chatThinkingEffortMedium.
   ///
   /// In zh, this message translates to:
-  /// **'中'**
+  /// **'Medium'**
   String get chatThinkingEffortMedium;
 
   /// No description provided for @chatThinkingEffortHigh.
   ///
   /// In zh, this message translates to:
-  /// **'高'**
+  /// **'High'**
   String get chatThinkingEffortHigh;
+
+  /// No description provided for @chatThinkingEffortXHigh.
+  ///
+  /// In zh, this message translates to:
+  /// **'XHigh'**
+  String get chatThinkingEffortXHigh;
+
+  /// No description provided for @chatThinkingEffortMax.
+  ///
+  /// In zh, this message translates to:
+  /// **'Max'**
+  String get chatThinkingEffortMax;
 
   /// No description provided for @chatSessionUsageEmpty.
   ///

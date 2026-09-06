@@ -131,6 +131,8 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
             ThinkingEffort.low,
             ThinkingEffort.medium,
             ThinkingEffort.high,
+            ThinkingEffort.xhigh,
+            ThinkingEffort.max,
           ].where(_levels.contains).toList())
         : const <ThinkingEffort>[];
 
@@ -245,6 +247,8 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
                                 ThinkingEffort.low,
                                 ThinkingEffort.medium,
                                 ThinkingEffort.high,
+                                ThinkingEffort.xhigh,
+                                ThinkingEffort.max,
                               ]
                               .map(
                                 (level) => _buildLevelChip(
@@ -359,10 +363,12 @@ class _ModelProfileDialogState extends State<ModelProfileDialog> {
         ),
         child: Text(
           switch (level) {
-            ThinkingEffort.off => l10n.chatThinkingEffortOff,
+            ThinkingEffort.none => l10n.chatThinkingEffortNone,
             ThinkingEffort.low => l10n.chatThinkingEffortLow,
             ThinkingEffort.medium => l10n.chatThinkingEffortMedium,
             ThinkingEffort.high => l10n.chatThinkingEffortHigh,
+            ThinkingEffort.xhigh => l10n.chatThinkingEffortXHigh,
+            ThinkingEffort.max => l10n.chatThinkingEffortMax,
           },
           style: TextStyle(
             fontSize: 11,

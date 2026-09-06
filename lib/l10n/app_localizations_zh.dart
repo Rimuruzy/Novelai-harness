@@ -2200,16 +2200,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatThinkingLabel => '思考:';
 
   @override
-  String get chatThinkingEffortOff => '关';
+  String get chatThinkingEffortNone => 'None';
 
   @override
-  String get chatThinkingEffortLow => '低';
+  String get chatThinkingEffortLow => 'Low';
 
   @override
-  String get chatThinkingEffortMedium => '中';
+  String get chatThinkingEffortMedium => 'Medium';
 
   @override
-  String get chatThinkingEffortHigh => '高';
+  String get chatThinkingEffortHigh => 'High';
+
+  @override
+  String get chatThinkingEffortXHigh => 'XHigh';
+
+  @override
+  String get chatThinkingEffortMax => 'Max';
 
   @override
   String get chatSessionUsageEmpty => '当前会话暂无 Token 用量记录';

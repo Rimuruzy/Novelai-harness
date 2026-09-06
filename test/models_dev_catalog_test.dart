@@ -103,6 +103,21 @@ void main() {
       ]);
       expect(o3.contextWindow, 200000);
 
+      // xhigh / max / none / minimal 各自归档，不再折叠到 high
+      final levels = ModelsDevCatalog.parseThinkingLevelsForTest([
+        {
+          'type': 'effort',
+          'values': ['max', 'xhigh', 'minimal', 'none', 'high'],
+        },
+      ]);
+      expect(levels, [
+        ThinkingEffort.none,
+        ThinkingEffort.low,
+        ThinkingEffort.high,
+        ThinkingEffort.xhigh,
+        ThinkingEffort.max,
+      ]);
+
       // 供应商前缀形式也可裸名命中
       expect(index['deepseek-v3.1-terminus'], isNotNull);
 
@@ -222,11 +237,11 @@ void main() {
       expect(deepseek.maxTokens, 32768);
       expect(deepseek.temperature, 0.6);
 
-      // 未知模型回退启发式默认值
+      // 未知模型回退启发式默认值 (默认温度 1.0)
       final mystery = result.models.firstWhere((m) => m.id == 'mystery-model');
       expect(mystery.reasoning, isFalse);
       expect(mystery.contextWindow, 128000);
-      expect(mystery.temperature, 0.7);
+      expect(mystery.temperature, 1.0);
     });
 
     test('合并既有配置：保留用户名称温度，追加本地自定义模型', () async {

@@ -48,17 +48,22 @@ enum ThinkingParamFormat {
 }
 
 /// LLM 思考强度等级 (Reasoning / Thinking Effort)。
+/// 对齐业界通用六档 none / low / medium / high / xhigh / max。
 /// 纯结构化枚举，UI 展示名由 l10n chatThinkingEffort* 词条接管。
 enum ThinkingEffort {
-  off('off'),
+  none('none'),
   low('low'),
   medium('medium'),
-  high('high');
+  high('high'),
+  xhigh('xhigh'),
+  max('max');
 
   final String id;
   const ThinkingEffort(this.id);
 
   static ThinkingEffort fromId(String? id) {
+    // 旧配置持久化的 'off' 档位统一回读为 none
+    if (id == 'off') return ThinkingEffort.none;
     return ThinkingEffort.values.firstWhere(
       (e) => e.id == id,
       orElse: () => ThinkingEffort.medium,
@@ -89,7 +94,7 @@ class LlmModelConfig {
     this.supportedThinkingLevels = const [],
     this.contextWindow = 128000,
     this.maxTokens = 8192,
-    this.temperature = 0.7,
+    this.temperature = 1.0,
     this.imageOutput = false,
     this.cacheConfig = const LlmCacheConfig(),
   });
@@ -110,7 +115,7 @@ class LlmModelConfig {
           ? ThinkingEffort.medium
           : supportedThinkingLevels.last;
     }
-    return reasoning ? ThinkingEffort.high : ThinkingEffort.off;
+    return reasoning ? ThinkingEffort.high : ThinkingEffort.none;
   }
 
   LlmModelConfig copyWith({
@@ -183,7 +188,7 @@ class LlmModelConfig {
       supportedThinkingLevels: levels,
       contextWindow: (json['contextWindow'] as num?)?.toInt() ?? 128000,
       maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 8192,
-      temperature: (json['temperature'] as num?)?.toDouble() ?? 0.7,
+      temperature: (json['temperature'] as num?)?.toDouble() ?? 1.0,
       imageOutput: json['imageOutput'] as bool? ?? false,
       cacheConfig: LlmCacheConfig.fromJson(json['cacheConfig']),
     );
@@ -283,7 +288,7 @@ class LlmProviderConfig {
     // 兼容旧配置无 models 的情况
     if (parsedModels.isEmpty) {
       final oldModel = json['model'] as String? ?? 'deepseek-chat';
-      final oldTemp = (json['temperature'] as num?)?.toDouble() ?? 0.7;
+      final oldTemp = (json['temperature'] as num?)?.toDouble() ?? 1.0;
       parsedModels = [
         LlmModelConfig(id: oldModel, name: oldModel, temperature: oldTemp),
       ];
@@ -327,7 +332,7 @@ class LlmProviderConfig {
           input: ['text'],
           contextWindow: 64000,
           maxTokens: 8192,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'deepseek-reasoner',
@@ -358,7 +363,7 @@ class LlmProviderConfig {
           input: ['text', 'image'],
           contextWindow: 128000,
           maxTokens: 16384,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'gpt-4o-mini',
@@ -367,7 +372,7 @@ class LlmProviderConfig {
           input: ['text', 'image'],
           contextWindow: 128000,
           maxTokens: 16384,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'o3-mini',
@@ -421,7 +426,7 @@ class LlmProviderConfig {
           ],
           contextWindow: 200000,
           maxTokens: 64000,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'claude-3-5-sonnet-20241022',
@@ -430,7 +435,7 @@ class LlmProviderConfig {
           input: ['text', 'image'],
           contextWindow: 200000,
           maxTokens: 8192,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'claude-3-5-haiku-20241022',
@@ -439,7 +444,7 @@ class LlmProviderConfig {
           input: ['text', 'image'],
           contextWindow: 200000,
           maxTokens: 8192,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
       ],
     ),
@@ -465,7 +470,7 @@ class LlmProviderConfig {
           ],
           contextWindow: 1000000,
           maxTokens: 65536,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'gemini-2.5-pro',
@@ -479,7 +484,7 @@ class LlmProviderConfig {
           ],
           contextWindow: 2000000,
           maxTokens: 65536,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
       ],
     ),
@@ -500,7 +505,7 @@ class LlmProviderConfig {
           input: ['text'],
           contextWindow: 64000,
           maxTokens: 8192,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'deepseek-ai/DeepSeek-R1',
@@ -519,7 +524,7 @@ class LlmProviderConfig {
           input: ['text'],
           contextWindow: 128000,
           maxTokens: 8192,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
       ],
     ),
@@ -540,7 +545,7 @@ class LlmProviderConfig {
           input: ['text'],
           contextWindow: 128000,
           maxTokens: 8192,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
         LlmModelConfig(
           id: 'deepseek-r1:14b',
@@ -559,7 +564,7 @@ class LlmProviderConfig {
           input: ['text'],
           contextWindow: 32000,
           maxTokens: 8192,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
       ],
     ),

@@ -9,6 +9,7 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
+import '../../../core/widgets/app_dropdown.dart';
 import 'chat_image_attachment.dart';
 import 'slash_command_overlay.dart';
 import '../view_models/studio_view_model.dart';
@@ -718,26 +719,21 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
               margin: const EdgeInsets.symmetric(horizontal: 6),
               color: colors.borderDefault,
             ),
-            _buildInlineThinkingButtons(activeModel, currentEffort),
+            _buildInlineThinkingDropdown(activeModel, currentEffort),
           ],
         ],
       ),
     );
   }
 
-  /// 一体化卡片内部的思考强度切换按钮组
-  Widget _buildInlineThinkingButtons(
+  /// 一体化卡片内部的思考强度下拉选择框 (none / low / medium / high / xhigh / max)
+  Widget _buildInlineThinkingDropdown(
     LlmModelConfig model,
     ThinkingEffort currentEffort,
   ) {
     final availableLevels = model.supportedThinkingLevels.isNotEmpty
-        ? [ThinkingEffort.off, ...model.supportedThinkingLevels]
-        : [
-            ThinkingEffort.off,
-            ThinkingEffort.low,
-            ThinkingEffort.medium,
-            ThinkingEffort.high,
-          ];
+        ? [ThinkingEffort.none, ...model.supportedThinkingLevels]
+        : ThinkingEffort.values;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -756,40 +752,37 @@ class _AgentChatInputBarState extends State<AgentChatInputBar> {
             color: context.colors.textPrimary,
           ),
         ),
-        const SizedBox(width: 3),
-        ...availableLevels.map((effort) {
-          final isSelected = currentEffort == effort;
-          return InkWell(
-            onTap: () => widget.viewModel.setThinkingEffort(effort),
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: isSelected ? context.colors.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Text(
-                switch (effort) {
-                  ThinkingEffort.off => context.l10n.chatThinkingEffortOff,
-                  ThinkingEffort.low => context.l10n.chatThinkingEffortLow,
-                  ThinkingEffort.medium =>
-                    context.l10n.chatThinkingEffortMedium,
-                  ThinkingEffort.high => context.l10n.chatThinkingEffortHigh,
-                },
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected
-                      ? Colors.white
-                      : context.colors.textSecondary,
+        const SizedBox(width: 6),
+        AppDropdown<ThinkingEffort>(
+          value: currentEffort,
+          items: availableLevels
+              .map(
+                (effort) => AppDropdownItem<ThinkingEffort>(
+                  value: effort,
+                  label: _effortLabel(effort),
                 ),
-              ),
-            ),
-          );
-        }),
+              )
+              .toList(),
+          onChanged: (effort) => widget.viewModel.setThinkingEffort(effort),
+          variant: AppDropdownVariant.compact,
+          width: 92,
+          menuWidth: 200,
+        ),
       ],
     );
+  }
+
+  /// 思考等级档位展示名 (l10n 词条统一接管)
+  String _effortLabel(ThinkingEffort effort) {
+    final l10n = context.l10n;
+    return switch (effort) {
+      ThinkingEffort.none => l10n.chatThinkingEffortNone,
+      ThinkingEffort.low => l10n.chatThinkingEffortLow,
+      ThinkingEffort.medium => l10n.chatThinkingEffortMedium,
+      ThinkingEffort.high => l10n.chatThinkingEffortHigh,
+      ThinkingEffort.xhigh => l10n.chatThinkingEffortXHigh,
+      ThinkingEffort.max => l10n.chatThinkingEffortMax,
+    };
   }
 
   /// 悬停模型选择器时展示的当前会话用量摘要

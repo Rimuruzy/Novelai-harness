@@ -116,7 +116,7 @@ class ModelsSettingsDraft {
           id: 'gpt-4o',
           name: 'GPT-4o',
           reasoning: false,
-          temperature: 0.7,
+          temperature: 1.0,
         ),
       ],
     );

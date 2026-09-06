@@ -273,7 +273,7 @@ mixin _StudioHarnessMixin on _StudioCore {
     if (activeLlm.apiKey.isNotEmpty) {
       final supportsThinking = activeModel.supportsThinking;
       final isReasoningActive =
-          supportsThinking && _currentThinkingEffort != ThinkingEffort.off;
+          supportsThinking && _currentThinkingEffort != ThinkingEffort.none;
 
       _harness.provider = OpenAiCompatibleProvider(
         baseUrl: activeLlm.fullEndpointUrl,

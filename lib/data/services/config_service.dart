@@ -673,7 +673,7 @@ class ConfigService {
           Platform.environment['OPENAI_API_KEY'] ??
           '';
       final legacyModel = prefs.getString(_keyLlmModel) ?? 'deepseek-chat';
-      final legacyTemp = prefs.getDouble(_keyLlmTemperature) ?? 0.7;
+      final legacyTemp = prefs.getDouble(_keyLlmTemperature) ?? 1.0;
 
       providers = [
         LlmProviderConfig(

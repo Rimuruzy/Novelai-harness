@@ -377,7 +377,7 @@ class LlmModelFetcher {
     final name = (existing != null && existing.name != existing.id)
         ? existing.name
         : (raw.displayName ?? dev?.name ?? raw.id);
-    final temperature = existing?.temperature ?? (isReasoning ? 0.6 : 0.7);
+    final temperature = existing?.temperature ?? (isReasoning ? 0.6 : 1.0);
 
     return LlmModelConfig(
       id: raw.id,
