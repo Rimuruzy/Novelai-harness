@@ -56,6 +56,10 @@ dependencies:
   desktop_drop: ^0.8.3
   flutter_markdown_plus: ^1.0.12
   image: ^4.3.0
+  # V4/V4.5 提示词 T5 SentencePiece 分词 (token 计数对齐官网)
+  dart_sentencepiece_tokenizer: ^1.3.0
+  # Qwen 分词前要求 NFC 归一化，Dart 无内置实现
+  unorm_dart: ^0.3.2
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +82,7 @@ flutter:
 
   assets:
     - assets/danbooru.tsv
+    - assets/tokenizers/
 
   fonts:
     - family: MiSans

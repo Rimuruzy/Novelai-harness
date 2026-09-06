@@ -4,6 +4,18 @@ library;
 import 'dart:math';
 import 'nai_character_prompt.dart';
 
+/// 提示词 token 计数使用的分词器家族 (决定计数方式与官网对齐手段)
+enum NaiTokenizerKind {
+  /// V3 及更早：CLIP 分词，本仓库用启发式估算 (无真分词器资产)
+  clip,
+
+  /// V4 / V4.5：T5 SentencePiece
+  t5,
+
+  /// V5：Qwen 3.5 byte-level BPE
+  qwen35,
+}
+
 /// NovelAI 官方支持的模型列表
 enum NaiModel {
   v5Full('nai-diffusion-5-full', 'NAI-Diffusion-v5-Full'),
@@ -67,6 +79,24 @@ enum NaiModel {
     NaiModel.v4Full ||
     NaiModel.v4Curated => 512,
     NaiModel.v3 || NaiModel.v3Furry => 225,
+  };
+
+  /// 提示词分词器家族 (V5=Qwen3.5 BPE，V4/V4.5=T5，V3=CLIP 启发式估算)
+  NaiTokenizerKind get tokenizerKind => switch (this) {
+    NaiModel.v5Full || NaiModel.v5Curated => NaiTokenizerKind.qwen35,
+    NaiModel.v45Full ||
+    NaiModel.v45Curated ||
+    NaiModel.v4Full ||
+    NaiModel.v4Curated => NaiTokenizerKind.t5,
+    NaiModel.v3 || NaiModel.v3Furry => NaiTokenizerKind.clip,
+  };
+
+  /// 文字渲染 token 支持上限 (官方文档仅 V5 给出：Full ~750 / Curated ~374；
+  /// 超过后文字渲染功能受限，作为 token 显示的黄档阈值，其余模型无黄档)
+  int? get textRenderTokenLimit => switch (this) {
+    NaiModel.v5Full => 750,
+    NaiModel.v5Curated => 374,
+    _ => null,
   };
 
   /// Native 噪声调度是否可选 (官网仅在 v3 及更早提供)

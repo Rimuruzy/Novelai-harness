@@ -1264,5 +1264,17 @@
   "slashNaiDoneFallback": "done",
   "slashUnknown": "Unknown command \"{cmd}\". Type /help for available commands.",
   "@slashUnknown": {"placeholders": {"cmd": {"type": "String"}}},
-  "vmSlashParamsTitle": "Workbench generation parameters:"
+  "vmSlashParamsTitle": "Workbench generation parameters:",
+  "promptTokenLabel": "Token",
+  "promptTokenEstimated": "~",
+  "promptTokenEstimatedTooltip": "V3 uses a CLIP heuristic estimate, for reference only",
+  "promptTokenBreakdownPrompt": "Prompt",
+  "promptTokenBreakdownFixedAffixes": "Fixed affixes",
+  "promptTokenBreakdownQualityTags": "Quality tags",
+  "promptTokenBreakdownCharacters": "Characters",
+  "promptTokenBreakdownNegativePrompt": "Negative prompt",
+  "promptTokenBreakdownUcPreset": "UC preset",
+  "promptTokenBreakdownCharacterNegatives": "Character negatives",
+  "promptTokenFeatureLimited": "Over the text rendering support limit; text rendering is limited",
+  "promptTokenOverLimit": "Over the model token limit; excess tokens will be truncated"
 }

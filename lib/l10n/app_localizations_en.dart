@@ -2921,4 +2921,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vmSlashParamsTitle => 'Workbench generation parameters:';
+
+  @override
+  String get promptTokenLabel => 'Token';
+
+  @override
+  String get promptTokenEstimated => '~';
+
+  @override
+  String get promptTokenEstimatedTooltip =>
+      'V3 uses a CLIP heuristic estimate, for reference only';
+
+  @override
+  String get promptTokenBreakdownPrompt => 'Prompt';
+
+  @override
+  String get promptTokenBreakdownFixedAffixes => 'Fixed affixes';
+
+  @override
+  String get promptTokenBreakdownQualityTags => 'Quality tags';
+
+  @override
+  String get promptTokenBreakdownCharacters => 'Characters';
+
+  @override
+  String get promptTokenBreakdownNegativePrompt => 'Negative prompt';
+
+  @override
+  String get promptTokenBreakdownUcPreset => 'UC preset';
+
+  @override
+  String get promptTokenBreakdownCharacterNegatives => 'Character negatives';
+
+  @override
+  String get promptTokenFeatureLimited =>
+      'Over the text rendering support limit; text rendering is limited';
+
+  @override
+  String get promptTokenOverLimit =>
+      'Over the model token limit; excess tokens will be truncated';
 }

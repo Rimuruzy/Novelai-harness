@@ -28,6 +28,7 @@ import '../../../../data/repositories/novelai_repository.dart';
 import '../../../../data/services/anlas_calculator.dart';
 import '../../../../data/services/config_service.dart';
 import '../../../../data/services/image_metadata_service.dart';
+import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../data/services/inpaint_service.dart';
 import '../../../../data/services/watermark_service.dart';
 import '../../../../data/services/prompt_library_service.dart';
@@ -592,6 +593,10 @@ class StudioViewModel extends ChangeNotifier
     // 加载词组合库
     await loadPromptLibrary();
 
+    // 后台预载提示词分词器 (T5/Qwen 词表解析一次性开销)；
+    // 完成后通知重建，让提示词卡片从启发式估算切到真分词计数
+    unawaited(_precachePromptTokenizers());
+
     _currentThinkingEffort =
         _config.activeLlmProvider.activeModel.defaultThinkingEffort;
 
@@ -775,6 +780,10 @@ class StudioViewModel extends ChangeNotifier
   /// 手动调过的一律保留；切到 v4+ 时 Native 噪声调度不合法，自动回落 Karras。
   void selectModel(NaiModel model) {
     final old = _params;
+    // 切到不同分词器家族时预载对应词表 (幂等)
+    if (model.tokenizerKind != old.model.tokenizerKind) {
+      unawaited(_precachePromptTokenizers(model));
+    }
     final scaleUntouched = (old.scale - old.model.defaultScale).abs() < 0.001;
     // 28 为本应用历史全局默认步数，视同未手动调整
     final stepsUntouched =
@@ -801,6 +810,21 @@ class StudioViewModel extends ChangeNotifier
   }
 
   // ------------------------- 画板选图 -------------------------
+
+  /// 预载当前 (或指定) 模型的提示词分词器；完成后通知重建，
+  /// 提示词卡片的 token 计数从启发式估算切到真分词结果。
+  Future<void> _precachePromptTokenizers([NaiModel? model]) async {
+    final target = model ?? _params.model;
+    try {
+      await PromptTokenCounterService.instance.precache(target);
+    } catch (_) {
+      // 词表资产缺失时不阻断启动，计数保持启发式估算
+      return;
+    }
+    if (_params.model.tokenizerKind == target.tokenizerKind) {
+      notifyListeners();
+    }
+  }
 
   /// 选择画板当前查看的图片
   void selectImage(NaiGeneratedImage image) {

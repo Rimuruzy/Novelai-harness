@@ -89,6 +89,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
+  dart_sentencepiece_tokenizer:
+    dependency: "direct main"
+    description:
+      name: dart_sentencepiece_tokenizer
+      sha256: c8dc360ec4048aece5cf883c1ea295dbce4f30c9659b8c26fe31b5e0876e8143
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.0"
   dbus:
     dependency: transitive
     description:
@@ -642,6 +650,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.0"
+  unorm_dart:
+    dependency: "direct main"
+    description:
+      name: unorm_dart
+      sha256: "0c69186b03ca6addab0774bcc0f4f17b88d4ce78d9d4d8f0619e30a99ead58e7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.2"
   uuid:
     dependency: transitive
     description:

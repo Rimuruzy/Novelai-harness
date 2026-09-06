@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/novelai_service.dart';
+import 'package:novelai_harness/data/services/prompt_token_counter_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/theme/app_theme.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
@@ -74,7 +75,7 @@ void main() {
                 minLines: 4,
                 minHeight: 80,
                 maxHeight: 400,
-                tokenEstimate: 10,
+                tokenUsage: const PromptTokenUsage(used: 10, hardLimit: 225),
               ),
             ),
           ),
@@ -126,7 +127,7 @@ void main() {
                   minLines: 4,
                   initialHeight: 180.0,
                   onHeightChanged: (h) => changedHeight = h,
-                  tokenEstimate: 5,
+                  tokenUsage: const PromptTokenUsage(used: 5, hardLimit: 225),
                 ),
               ),
             ),
@@ -175,7 +176,7 @@ void main() {
                 controller: controller,
                 onChanged: (_) {},
                 hintText: 'Enter prompt',
-                tokenEstimate: 5,
+                tokenUsage: const PromptTokenUsage(used: 5, hardLimit: 225),
               ),
             ),
           ),

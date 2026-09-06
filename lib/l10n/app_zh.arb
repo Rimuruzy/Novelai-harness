@@ -1264,5 +1264,17 @@
   "slashNaiDoneFallback": "完成",
   "slashUnknown": "未知指令 \"{cmd}\"，输入 /help 查看可用指令。",
   "@slashUnknown": {"placeholders": {"cmd": {"type": "String"}}},
-  "vmSlashParamsTitle": "工作台当前生图参数："
+  "vmSlashParamsTitle": "工作台当前生图参数：",
+  "promptTokenLabel": "Token",
+  "promptTokenEstimated": "约",
+  "promptTokenEstimatedTooltip": "V3 使用 CLIP 启发式估算，仅作参考",
+  "promptTokenBreakdownPrompt": "提示词",
+  "promptTokenBreakdownFixedAffixes": "固定词缀",
+  "promptTokenBreakdownQualityTags": "质量词",
+  "promptTokenBreakdownCharacters": "角色",
+  "promptTokenBreakdownNegativePrompt": "负面提示词",
+  "promptTokenBreakdownUcPreset": "UC 预设",
+  "promptTokenBreakdownCharacterNegatives": "角色负面",
+  "promptTokenFeatureLimited": "超过文字渲染支持上限，文字渲染功能受限",
+  "promptTokenOverLimit": "超过模型 Token 上限，超出部分将被截断"
 }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_progress_bar.dart';
+import '../../../../data/services/prompt_token_counter_service.dart';
 import 'prompt_edit_actions.dart';
 import 'prompt_resize_handle.dart';
 import 'tag_browser_dialog.dart';
@@ -17,7 +19,7 @@ class GrayTag {
   const GrayTag(this.label, this.text);
 }
 
-/// 提示词编辑卡：只读标签头 + 主输入框 (支持上下拖拽调节高度) + 调节手柄 + 只读标签脚 + 工具条 + 快捷标签操作 + Token 进度条。
+/// 提示词编辑卡：只读标签头 + 主输入框 (支持上下拖拽调节高度) + 调节手柄 + 只读标签脚 + 工具条 + 快捷标签操作 + Token 用量显示。
 /// 正向提示词与负面排除词、垂直堆叠与标签页两种布局共用同一张卡。
 class PromptEditorCard extends StatelessWidget {
   final TextEditingController controller;
@@ -50,11 +52,8 @@ class PromptEditorCard extends StatelessWidget {
   /// 是否显示快捷标签工具条 (加权/降权/禁用/格式化/标签库)
   final bool showQuickActions;
 
-  /// Token 估算值，用于底部进度条
-  final int tokenEstimate;
-
-  /// Token 上限 (按模型分词器区分)
-  final int tokenLimit;
+  /// Token 用量 (null 时隐藏 Token 显示；正负分开计数，由调用方传入)
+  final PromptTokenUsage? tokenUsage;
 
   /// 是否启用 Danbooru 自动补全 (设置项控制)
   final bool enableAutocomplete;
@@ -77,8 +76,7 @@ class PromptEditorCard extends StatelessWidget {
     this.footerTags = const [],
     this.toolbar,
     this.showQuickActions = true,
-    required this.tokenEstimate,
-    this.tokenLimit = 225,
+    this.tokenUsage,
     this.enableAutocomplete = true,
     this.showTranslation = true,
   });
@@ -204,13 +202,95 @@ class PromptEditorCard extends StatelessWidget {
                 ],
               ),
             ),
-          AppProgressBar(
-            value: (tokenEstimate / tokenLimit).clamp(0.0, 1.0),
-            height: 3,
-          ),
+          if (tokenUsage != null) _TokenFooter(usage: tokenUsage!),
         ],
       ),
     );
+  }
+}
+
+/// 底部 Token 用量显示：右对齐数值 + 3px 进度条。
+/// 黄色 = 超过文字渲染支持上限 (V5)，红色 = 超过模型 token 上限；
+/// 悬停展示分项明细与阈值提示。
+class _TokenFooter extends StatelessWidget {
+  final PromptTokenUsage usage;
+
+  const _TokenFooter({required this.usage});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = context.l10n;
+    final level = usage.level;
+    final color = switch (level) {
+      PromptTokenBudgetLevel.overLimit => colors.error,
+      PromptTokenBudgetLevel.featureLimited => colors.warning,
+      PromptTokenBudgetLevel.normal => colors.textSecondary,
+    };
+
+    final prefix = usage.estimated ? l10n.promptTokenEstimated : '';
+    final label = Text(
+      '$prefix${usage.used} / ${usage.hardLimit}',
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: level == PromptTokenBudgetLevel.normal
+            ? FontWeight.w500
+            : FontWeight.w600,
+        color: color,
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 12, 3),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Tooltip(
+              message: _tooltipMessage(l10n),
+              waitDuration: const Duration(milliseconds: 300),
+              child: label,
+            ),
+          ),
+        ),
+        AppProgressBar(
+          value: (usage.used / usage.hardLimit).clamp(0.0, 1.0),
+          height: 3,
+          color: color,
+        ),
+      ],
+    );
+  }
+
+  String _tooltipMessage(AppLocalizations l10n) {
+    final lines = <String>[
+      if (usage.estimated) l10n.promptTokenEstimatedTooltip,
+      if (usage.level == PromptTokenBudgetLevel.featureLimited)
+        l10n.promptTokenFeatureLimited
+      else if (usage.level == PromptTokenBudgetLevel.overLimit)
+        l10n.promptTokenOverLimit,
+      for (final entry in usage.breakdown)
+        '${_breakdownLabel(l10n, entry.kind)}  ${entry.tokens}',
+    ];
+    return lines.join('\n');
+  }
+
+  String _breakdownLabel(AppLocalizations l10n, PromptTokenBreakdownKind kind) {
+    return switch (kind) {
+      PromptTokenBreakdownKind.prompt => l10n.promptTokenBreakdownPrompt,
+      PromptTokenBreakdownKind.fixedAffixes =>
+        l10n.promptTokenBreakdownFixedAffixes,
+      PromptTokenBreakdownKind.qualityTags =>
+        l10n.promptTokenBreakdownQualityTags,
+      PromptTokenBreakdownKind.characters =>
+        l10n.promptTokenBreakdownCharacters,
+      PromptTokenBreakdownKind.negativePrompt =>
+        l10n.promptTokenBreakdownNegativePrompt,
+      PromptTokenBreakdownKind.ucPreset => l10n.promptTokenBreakdownUcPreset,
+      PromptTokenBreakdownKind.characterNegatives =>
+        l10n.promptTokenBreakdownCharacterNegatives,
+    };
   }
 }
 

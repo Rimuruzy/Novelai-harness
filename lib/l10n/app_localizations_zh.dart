@@ -2777,4 +2777,40 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get vmSlashParamsTitle => '工作台当前生图参数：';
+
+  @override
+  String get promptTokenLabel => 'Token';
+
+  @override
+  String get promptTokenEstimated => '约';
+
+  @override
+  String get promptTokenEstimatedTooltip => 'V3 使用 CLIP 启发式估算，仅作参考';
+
+  @override
+  String get promptTokenBreakdownPrompt => '提示词';
+
+  @override
+  String get promptTokenBreakdownFixedAffixes => '固定词缀';
+
+  @override
+  String get promptTokenBreakdownQualityTags => '质量词';
+
+  @override
+  String get promptTokenBreakdownCharacters => '角色';
+
+  @override
+  String get promptTokenBreakdownNegativePrompt => '负面提示词';
+
+  @override
+  String get promptTokenBreakdownUcPreset => 'UC 预设';
+
+  @override
+  String get promptTokenBreakdownCharacterNegatives => '角色负面';
+
+  @override
+  String get promptTokenFeatureLimited => '超过文字渲染支持上限，文字渲染功能受限';
+
+  @override
+  String get promptTokenOverLimit => '超过模型 Token 上限，超出部分将被截断';
 }

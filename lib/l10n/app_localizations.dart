@@ -5119,6 +5119,78 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'工作台当前生图参数：'**
   String get vmSlashParamsTitle;
+
+  /// No description provided for @promptTokenLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'Token'**
+  String get promptTokenLabel;
+
+  /// No description provided for @promptTokenEstimated.
+  ///
+  /// In zh, this message translates to:
+  /// **'约'**
+  String get promptTokenEstimated;
+
+  /// No description provided for @promptTokenEstimatedTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'V3 使用 CLIP 启发式估算，仅作参考'**
+  String get promptTokenEstimatedTooltip;
+
+  /// No description provided for @promptTokenBreakdownPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示词'**
+  String get promptTokenBreakdownPrompt;
+
+  /// No description provided for @promptTokenBreakdownFixedAffixes.
+  ///
+  /// In zh, this message translates to:
+  /// **'固定词缀'**
+  String get promptTokenBreakdownFixedAffixes;
+
+  /// No description provided for @promptTokenBreakdownQualityTags.
+  ///
+  /// In zh, this message translates to:
+  /// **'质量词'**
+  String get promptTokenBreakdownQualityTags;
+
+  /// No description provided for @promptTokenBreakdownCharacters.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色'**
+  String get promptTokenBreakdownCharacters;
+
+  /// No description provided for @promptTokenBreakdownNegativePrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'负面提示词'**
+  String get promptTokenBreakdownNegativePrompt;
+
+  /// No description provided for @promptTokenBreakdownUcPreset.
+  ///
+  /// In zh, this message translates to:
+  /// **'UC 预设'**
+  String get promptTokenBreakdownUcPreset;
+
+  /// No description provided for @promptTokenBreakdownCharacterNegatives.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色负面'**
+  String get promptTokenBreakdownCharacterNegatives;
+
+  /// No description provided for @promptTokenFeatureLimited.
+  ///
+  /// In zh, this message translates to:
+  /// **'超过文字渲染支持上限，文字渲染功能受限'**
+  String get promptTokenFeatureLimited;
+
+  /// No description provided for @promptTokenOverLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'超过模型 Token 上限，超出部分将被截断'**
+  String get promptTokenOverLimit;
 }
 
 class _AppLocalizationsDelegate

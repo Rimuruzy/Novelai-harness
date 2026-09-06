@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/widgets/app_dropdown.dart';
@@ -309,11 +310,7 @@ class _PromptsPageState extends State<PromptsPage> {
           toolbar: _promptToolbar(params),
           enableAutocomplete: viewModel.config.enableTagAutocomplete,
           showTranslation: viewModel.config.showTagTranslations,
-          tokenEstimate: estimatePromptTokens(
-            _promptController.text,
-            limit: params.model.tokenLimit,
-          ),
-          tokenLimit: params.model.tokenLimit,
+          tokenUsage: PromptTokenCounterService.instance.countPositive(params),
         ),
 
         const SizedBox(height: 16),
@@ -365,11 +362,7 @@ class _PromptsPageState extends State<PromptsPage> {
           toolbar: _negativeToolbar(params),
           enableAutocomplete: viewModel.config.enableTagAutocomplete,
           showTranslation: viewModel.config.showTagTranslations,
-          tokenEstimate: estimatePromptTokens(
-            _negativeController.text,
-            limit: params.model.tokenLimit,
-          ),
-          tokenLimit: params.model.tokenLimit,
+          tokenUsage: PromptTokenCounterService.instance.countNegative(params),
         ),
       ],
     );
@@ -451,11 +444,9 @@ class _PromptsPageState extends State<PromptsPage> {
             toolbar: _promptToolbar(params),
             enableAutocomplete: viewModel.config.enableTagAutocomplete,
             showTranslation: viewModel.config.showTagTranslations,
-            tokenEstimate: estimatePromptTokens(
-              _promptController.text,
-              limit: params.model.tokenLimit,
+            tokenUsage: PromptTokenCounterService.instance.countPositive(
+              params,
             ),
-            tokenLimit: params.model.tokenLimit,
           )
         else
           PromptEditorCard(
@@ -470,11 +461,9 @@ class _PromptsPageState extends State<PromptsPage> {
             toolbar: _negativeToolbar(params),
             enableAutocomplete: viewModel.config.enableTagAutocomplete,
             showTranslation: viewModel.config.showTagTranslations,
-            tokenEstimate: estimatePromptTokens(
-              _negativeController.text,
-              limit: params.model.tokenLimit,
+            tokenUsage: PromptTokenCounterService.instance.countNegative(
+              params,
             ),
-            tokenLimit: params.model.tokenLimit,
           ),
       ],
     );

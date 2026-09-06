@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novelai_harness/data/repositories/novelai_repository.dart';
 import 'package:novelai_harness/data/services/config_service.dart';
 import 'package:novelai_harness/data/services/novelai_service.dart';
+import 'package:novelai_harness/data/services/prompt_token_counter_service.dart';
 import 'package:novelai_harness/l10n/app_localizations.dart';
 import 'package:novelai_harness/ui/core/theme/app_theme.dart';
 import 'package:novelai_harness/ui/core/widgets/app_badge.dart';
@@ -11,7 +12,6 @@ import 'package:novelai_harness/ui/core/widgets/app_progress_bar.dart';
 import 'package:novelai_harness/ui/features/studio/view_models/studio_view_model.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/fixed_affixes_panel.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/prompt_editor_card.dart';
-import 'package:novelai_harness/ui/features/studio/widgets/studio_shared.dart';
 
 void main() {
   group('wave4-C PromptEditorCard 主题与原子组件清洗', () {
@@ -34,8 +34,7 @@ void main() {
               hintText: 'Enter prompt',
               headerTags: const [GrayTag('PREFIX', '0.7::artist::')],
               footerTags: const [GrayTag('UC', 'lowres, bad quality')],
-              tokenEstimate: 45,
-              tokenLimit: 225,
+              tokenUsage: const PromptTokenUsage(used: 45, hardLimit: 225),
             ),
           ),
         ),
@@ -70,8 +69,7 @@ void main() {
               onChanged: (_) {},
               hintText: 'Enter prompt',
               headerTags: const [GrayTag('PREFIX', 'artist_tag')],
-              tokenEstimate: 20,
-              tokenLimit: 225,
+              tokenUsage: const PromptTokenUsage(used: 20, hardLimit: 225),
             ),
           ),
         ),
@@ -163,30 +161,6 @@ void main() {
       expect(find.byType(AppCard), findsOneWidget);
       expect(find.text('PREFIX'), findsOneWidget);
       expect(find.text('SUFFIX'), findsOneWidget);
-    });
-  });
-
-  group('wave4-C studio_shared TokenProgressBar 委托 AppProgressBar', () {
-    testWidgets('TokenProgressBar 内部渲染 AppProgressBar', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightTheme,
-          home: const Scaffold(
-            body: TokenProgressBar(tokens: 50, tokenLimit: 200),
-          ),
-        ),
-      );
-
-      expect(find.byType(TokenProgressBar), findsOneWidget);
-      expect(find.byType(AppProgressBar), findsOneWidget);
-
-      final progressBar = tester.widget<AppProgressBar>(
-        find.byType(AppProgressBar),
-      );
-      expect(progressBar.value, 0.25);
-      expect(progressBar.height, 3);
     });
   });
 }

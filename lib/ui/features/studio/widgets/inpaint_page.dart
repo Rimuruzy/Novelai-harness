@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/models/novelai_models.dart';
+import '../../../../data/services/prompt_token_counter_service.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
@@ -313,11 +314,12 @@ class _InpaintPageState extends State<InpaintPage> {
                   enableAutocomplete:
                       !isAiEdit && vm.config.enableTagAutocomplete,
                   showTranslation: vm.config.showTagTranslations,
-                  tokenEstimate: estimatePromptTokens(
-                    _promptController.text,
-                    limit: vm.params.model.tokenLimit,
-                  ),
-                  tokenLimit: vm.params.model.tokenLimit,
+                  // AI 整图编辑走外部绘图模型，不适用 NAI 分词器计数
+                  tokenUsage: isAiEdit
+                      ? null
+                      : PromptTokenCounterService.instance.countPositive(
+                          vm.params.copyWith(prompt: inpaint.customPrompt),
+                        ),
                 ),
               ] else ...[
                 _buildReusedPromptPreview(
@@ -368,11 +370,12 @@ class _InpaintPageState extends State<InpaintPage> {
                     showQuickActions: true,
                     enableAutocomplete: vm.config.enableTagAutocomplete,
                     showTranslation: vm.config.showTagTranslations,
-                    tokenEstimate: estimatePromptTokens(
-                      _negativeController.text,
-                      limit: vm.params.model.tokenLimit,
-                    ),
-                    tokenLimit: vm.params.model.tokenLimit,
+                    tokenUsage: PromptTokenCounterService.instance
+                        .countNegative(
+                          vm.params.copyWith(
+                            negativePrompt: inpaint.customNegativePrompt,
+                          ),
+                        ),
                   ),
                 ] else ...[
                   _buildReusedPromptPreview(
