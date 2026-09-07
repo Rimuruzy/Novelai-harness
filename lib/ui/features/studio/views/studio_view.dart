@@ -19,6 +19,10 @@ import '../widgets/studio_sidebar.dart';
 class StudioView extends StatefulWidget {
   const StudioView({super.key});
 
+  /// 仅供完整应用测试读取活动 ViewModel (注入消息/断言快捷键状态)
+  @visibleForTesting
+  static StudioViewModel? testViewModelHook;
+
   @override
   State<StudioView> createState() => _StudioViewState();
 }
@@ -41,12 +45,16 @@ class _StudioViewState extends State<StudioView> {
     super.initState();
     _viewModel = StudioViewModel();
     _viewModel.init();
+    StudioView.testViewModelHook = _viewModel;
     HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvents);
   }
 
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvents);
+    if (StudioView.testViewModelHook == _viewModel) {
+      StudioView.testViewModelHook = null;
+    }
     _viewModel.dispose();
     super.dispose();
   }
@@ -135,6 +143,17 @@ class _StudioViewState extends State<StudioView> {
         }
         return true;
       }
+    }
+
+    // 全局 Ctrl+O / Cmd+O：全局展开/折叠对话思考块 (与 Pi TUI 习惯一致)。
+    // 走 HardwareKeyboard 优先分发而非焦点链 CallbackShortcuts，
+    // 下拉菜单/覆盖层聚焦、焦点悬空等场景同样百分百生效
+    if (isControlOrCmd && event.logicalKey == LogicalKeyboardKey.keyO) {
+      // 长按重复事件只消费不动作
+      if (event is KeyDownEvent) {
+        _viewModel.toggleThinkingExpanded();
+      }
+      return true;
     }
 
     // 浏览器式整体 UI 缩放：Ctrl+= 放大 / Ctrl+- 缩小 / Ctrl+0 重置。
@@ -265,9 +284,8 @@ class _StudioViewState extends State<StudioView> {
         return CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{
             const SingleActivator(LogicalKeyboardKey.escape): _handleGlobalEsc,
-            // Ctrl+O: 全局展开/折叠对话思考块 (与 Pi TUI 习惯一致)
-            const SingleActivator(LogicalKeyboardKey.keyO, control: true): () =>
-                _viewModel.toggleThinkingExpanded(),
+            // Ctrl+O 改由 _handleGlobalKeyEvents (HardwareKeyboard 优先分发)
+            // 统一处理，避免焦点链漏派
           },
           child: Focus(
             autofocus: true,

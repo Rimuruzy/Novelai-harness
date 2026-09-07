@@ -13,7 +13,8 @@ Widget _buildList(SmoothWheelScrollController controller) {
         child: ListView.builder(
           controller: controller,
           itemCount: 100,
-          itemBuilder: (_, index) => SizedBox(height: 100, child: Text('$index')),
+          itemBuilder: (_, index) =>
+              SizedBox(height: 100, child: Text('$index')),
         ),
       ),
     ),

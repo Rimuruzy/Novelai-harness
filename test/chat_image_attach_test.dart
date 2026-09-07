@@ -281,6 +281,52 @@ void main() {
       expect(snapshot!.messages.single.content, '纯文本');
       expect(snapshot.messages.single.images, isEmpty);
     });
+
+    test('工具结果附带图片 JSONL 往返恢复', () async {
+      service.recordMessage(
+        AgentMessage(
+          id: 'a1',
+          role: AgentRole.assistant,
+          content: '查看画板',
+          toolCalls: [
+            ToolCall(id: 'c1', name: 'view_canvas_image', arguments: {}),
+          ],
+        ),
+      );
+      service.recordMessage(
+        AgentMessage(
+          id: 't1',
+          role: AgentRole.tool,
+          content: '画板截图已返回',
+          toolCallId: 'c1',
+          toolName: 'view_canvas_image',
+          imageBase64: _tinyPngBase64,
+        ),
+      );
+      await service.flush();
+
+      final snapshot = service.loadLatestSession();
+      expect(snapshot, isNotNull);
+      final restoredTool = snapshot!.messages.firstWhere(
+        (m) => m.role == AgentRole.tool,
+      );
+      expect(restoredTool.content, '画板截图已返回');
+      expect(restoredTool.imageBase64, _tinyPngBase64);
+      expect(restoredTool.imageMimeType, 'image/png');
+
+      // 落盘行确实是 text + image 内容块形态
+      final lines = await File(service.currentSessionFile!.path).readAsLines();
+      final toolLine = lines
+          .map((l) => jsonDecode(l) as Map<String, dynamic>)
+          .firstWhere(
+            (e) =>
+                e['type'] == 'message' && e['message']['role'] == 'toolResult',
+          );
+      final content = (toolLine['message'] as Map)['content'] as List<dynamic>;
+      expect(content.first['type'], 'text');
+      expect(content[1]['type'], 'image');
+      expect(content[1]['data'], _tinyPngBase64);
+    });
   });
 
   group('用户消息图片渲染', () {

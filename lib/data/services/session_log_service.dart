@@ -211,9 +211,18 @@ class SessionLogService implements SessionRecorder {
         msg['role'] = 'toolResult';
         msg['toolCallId'] = message.toolCallId ?? '';
         msg['toolName'] = message.toolName ?? '';
-        msg['content'] = [
+        // 工具结果附带的图片 (如查看画板图片工具) 作为 image 内容块一并落盘，
+        // 与用户消息的图片块同构，恢复时原样回读不再丢失
+        final toolParts = <Map<String, dynamic>>[
           {'type': 'text', 'text': message.content},
+          if (message.imageBase64 != null && message.imageBase64!.isNotEmpty)
+            {
+              'type': 'image',
+              'mimeType': message.imageMimeType,
+              'data': message.imageBase64,
+            },
         ];
+        msg['content'] = toolParts;
         msg['isError'] = message.isError;
         msg['timestamp'] = message.createdAt.millisecondsSinceEpoch;
 
@@ -834,6 +843,18 @@ class SessionLogService implements SessionRecorder {
         );
 
       case 'toolResult':
+        // 正文 text 块 + 可选 image 内容块 (工具结果附带图片)
+        String? toolImageBase64;
+        var toolImageMimeType = 'image/png';
+        final toolContent = msg['content'];
+        if (toolContent is List) {
+          for (final part in toolContent) {
+            if (part is Map<String, dynamic> && part['type'] == 'image') {
+              toolImageBase64 = part['data'] as String?;
+              toolImageMimeType = part['mimeType'] as String? ?? 'image/png';
+            }
+          }
+        }
         return AgentMessage(
           id: fallbackId,
           role: AgentRole.tool,
@@ -841,6 +862,8 @@ class SessionLogService implements SessionRecorder {
           toolCallId: msg['toolCallId'] as String?,
           toolName: msg['toolName'] as String?,
           isError: msg['isError'] as bool? ?? false,
+          imageBase64: toolImageBase64,
+          imageMimeType: toolImageMimeType,
           createdAt: createdAt,
         );
 

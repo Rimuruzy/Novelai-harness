@@ -55,6 +55,17 @@ class _SmoothWheelScrollPosition extends ScrollPositionWithSingleContext {
   double? _wheelTarget;
 
   @override
+  void beginActivity(ScrollActivity? newActivity) {
+    // 任何新活动 (外部 animateTo/jumpTo/拖拽/惯性或滑行自然结束后的空闲)
+    // 顶替旧配对时立即清理，杜绝废弃引用与幻影目标残留
+    if (!identical(newActivity, _glideActivity)) {
+      _glideActivity = null;
+      _wheelTarget = null;
+    }
+    super.beginActivity(newActivity);
+  }
+
+  @override
   void pointerScroll(double delta) {
     if (delta == 0.0) {
       super.pointerScroll(delta);
@@ -80,16 +91,15 @@ class _SmoothWheelScrollPosition extends ScrollPositionWithSingleContext {
         .clamp(minScrollExtent, maxScrollExtent)
         .toDouble();
 
-    if (!gliding && target == pixels) {
-      _wheelTarget = target;
-      return;
-    }
-    _wheelTarget = target;
+    if (!gliding && target == pixels) return;
+
     goIdle();
     unawaited(
       animateTo(target, duration: _glideDuration, curve: Curves.easeOutCubic),
     );
-    // animateTo 同步 beginActivity，此刻 activity 即本次滑行的身份令牌
+    // animateTo 同步 beginActivity (会先把旧配对清为 null)，因此在调用后
+    // 重新登记本次配对：滑行身份令牌 + 累计目标二者必须同写同清
+    _wheelTarget = target;
     _glideActivity = activity;
   }
 }

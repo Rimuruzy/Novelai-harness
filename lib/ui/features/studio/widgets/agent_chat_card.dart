@@ -1,5 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:flutter/rendering.dart'
+    show
+        RenderObject,
+        RenderSliverMultiBoxAdaptor,
+        ScrollCacheExtent,
+        SliverMultiBoxAdaptorParentData;
 import 'package:flutter/services.dart';
 import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -58,6 +64,26 @@ class AgentChatCardState extends State<AgentChatCard> {
   DateTime? _lastUserScrollIntentAt;
   static const Duration _followCooldown = Duration(milliseconds: 350);
 
+  /// 上一帧的是否在流式输出标志 (用于收尾瞬间的高度落差结算)
+  bool _wasStreaming = false;
+
+  /// 上一帧的思考块全局展开状态 (Ctrl+O 切换检测)
+  bool _lastThinkingExpanded = false;
+
+  /// 程序化补偿跳转进行中标记：跳转产生的 ScrollUpdateNotification
+  /// 不得被误判为用户上翻意图 (同步派发, 标志随调用栈生效)
+  bool _suppressScrollIntentNote = false;
+
+  /// 高度突变补偿锚点: (item 下标, 重建前布局偏移)
+  (double, int)? _pendingAnchor;
+
+  /// 锚点捕获瞬间的滚动位置 (绝对定位补偿的基准)
+  double? _anchorOriginPixels;
+
+  /// 补偿捕获时的整窗旧偏移快照 (index -> 旧 layoutOffset)，
+  /// 供年轻布局窗口外锚点的插值估算使用
+  Map<int, double>? _anchorOldOffsets;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -102,11 +128,12 @@ class AgentChatCardState extends State<AgentChatCard> {
         } else {
           _scrollController.jumpTo(pos.maxScrollExtent);
         }
-        // 静默跳转同样链式校验后续帧的估算修正 (动画模式由流式跟随逻辑兜底)，
-        // 不论本轮是否跳转都续链，防止估算晚结算导致停在旧位置
-        if (remainingFrames > 0) {
+        // 静默跳转同样链式校验后续帧的估算修正：动画模式只发一次 animateTo
+        // (连续每帧重启动画会反复以 easeOut 最大初速度起步，造成抽搐抖动)，
+        // 后续的尺寸增量由流式跟随逻辑接管
+        if (!animate && remainingFrames > 0) {
           _scrollToBottomAfterFrames(
-            animate: animate,
+            animate: false,
             remainingFrames: remainingFrames - 1,
             epoch: epoch,
           );
@@ -123,14 +150,29 @@ class AgentChatCardState extends State<AgentChatCard> {
   bool get _followMutedByUser {
     if (_followSuspended) return true;
     final last = _lastUserScrollIntentAt;
-    return last != null &&
-        DateTime.now().difference(last) < _followCooldown;
+    return last != null && DateTime.now().difference(last) < _followCooldown;
   }
 
   /// 记录一次用户主动滚动意图 (滚轮信号 / 指针按下 / 拖拽开始)
   void _noteUserScrollIntent() {
     _lastUserScrollIntentAt = DateTime.now();
     _pauseFollowing();
+  }
+
+  /// 滚轮信号意图判定：
+  /// 已经贴在底部时继续向下拨滚轮没有任何位移意图 (会被边界钳制成原地空转，
+  /// 且不产生 ScrollActivity/ScrollEndNotification)，若此时照常挂起跟随，
+  /// _followSuspended 将没有任何事件能复位，自动跟随彻底冻结 (死锁)。
+  /// 故「触底继续向下」的信号直接忽略，不挂起不冷却。
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent &&
+        event.scrollDelta.dy > 0 &&
+        _scrollController.hasClients &&
+        _scrollController.position.hasContentDimensions &&
+        _scrollController.position.extentAfter <= 1.0) {
+      return;
+    }
+    _noteUserScrollIntent();
   }
 
   /// 仅在 Agent 正在流式输出时生效：
@@ -173,7 +215,10 @@ class AgentChatCardState extends State<AgentChatCard> {
       final target = pos.maxScrollExtent;
       if ((pos.pixels - target).abs() > 0.5) {
         _lastFollowTarget = target;
+        // 程序化跳转，排除出用户意图侦测
+        _suppressScrollIntentNote = true;
         _scrollController.jumpTo(target);
+        _suppressScrollIntentNote = false;
       }
       // 只要还在流式且预算未尽就继续校验：估算可能晚一帧才结算，
       // “本轮无需跳转”不代表下一帧不需要
@@ -191,8 +236,9 @@ class AgentChatCardState extends State<AgentChatCard> {
   void _resumeFollowingAtBottom() {
     if (_scrollController.hasClients &&
         !_scrollController.position.isScrollingNotifier.value &&
-        _scrollController.position.extentAfter <= 1) {
+        _scrollController.position.extentAfter <= 1.0) {
       _followSuspended = false;
+      _lastUserScrollIntentAt = null;
     }
   }
 
@@ -202,11 +248,168 @@ class AgentChatCardState extends State<AgentChatCard> {
         notification.dragDetails != null) {
       _noteUserScrollIntent();
     }
+    // 任何非拖拽来源的向上位移都视为用户上翻意图 (键盘方向键/PgUp、触控板等
+    // 没有指针事件的滚动方式全靠这里兜底侦测)。程序化跟随只会向下跳底，
+    // 补偿性跳转由 [_suppressScrollIntentNote] 排除；其余向上位移记为意图
+    if (notification is ScrollUpdateNotification &&
+        !_suppressScrollIntentNote &&
+        notification.dragDetails == null &&
+        (notification.scrollDelta ?? 0) < -1.0) {
+      _noteUserScrollIntent();
+    }
     if (notification is ScrollEndNotification &&
-        notification.metrics.extentAfter <= 1) {
+        notification.metrics.extentAfter <= 1.0) {
+      // 严格贴底 (extentAfter≈0) 即视为回到流式跟随场景：
+      // 清冷却与暂停，随新输出继续跟随；微小上滚后的位置保持粘性
       _followSuspended = false;
+      _lastUserScrollIntentAt = null;
     }
     return false;
+  }
+
+  /// 定位消息流 ListView 的 Sliver 渲染对象 (自 Scrollable 渲染树向下搜索)
+  RenderSliverMultiBoxAdaptor? _findMessageListSliver() {
+    if (!_scrollController.hasClients) return null;
+    final scrollContext = _scrollController.position.context;
+    if (scrollContext is! ScrollableState) return null;
+    final render = scrollContext.context.findRenderObject();
+    if (render == null) return null;
+    RenderSliverMultiBoxAdaptor? found;
+    void visit(RenderObject obj) {
+      if (found != null) return;
+      if (obj is RenderSliverMultiBoxAdaptor) {
+        found = obj;
+        return;
+      }
+      obj.visitChildren(visit);
+    }
+
+    visit(render);
+    return found;
+  }
+
+  /// 捕获重建前整窗可布局子项的旧偏移快照，并返回视口顶部锚点 (偏移, 下标)
+  (Map<int, double> snapshot, (double, int) anchor)? _captureTopAnchor() {
+    final sliver = _findMessageListSliver();
+    if (sliver == null) return null;
+    final topEdge = _scrollController.position.pixels;
+    final snapshot = <int, double>{};
+    (double, int)? anchor;
+    // 只遍历活动布局盒链 (firstChild..childAfter)；keepAlive 陈旧桶条目
+    // 不在盒链里 (visitChildren 会额外吐出它们，绝不可混入计算)
+    RenderBox? node = sliver.firstChild;
+    while (node != null) {
+      final data = node.parentData;
+      if (data is! SliverMultiBoxAdaptorParentData) continue;
+      final layoutOffset = data.layoutOffset;
+      final index = data.index;
+      if (layoutOffset == null || index == null) continue;
+      snapshot[index] = layoutOffset;
+      if (anchor == null && layoutOffset + node.size.height > topEdge) {
+        anchor = (layoutOffset, index);
+      }
+      node = sliver.childAfter(node);
+    }
+    final resolvedAnchor = anchor;
+    if (resolvedAnchor == null) return null;
+    return (snapshot, resolvedAnchor);
+  }
+
+  /// 全局高度突变 (Ctrl+O 展开/折叠全部思考块) 的视口补偿：
+  /// 重建前捕获整窗旧偏移快照与视口顶部锚点；重建后新写入的子项若已铲到
+  /// 视口内则按锚点新偏移差值直接精准补偿；若批量高度剧变把锚点推到了
+  /// 缓存窗口之外 (懒加载列表根本没重新布局它)，则用最近的新鲜子项
+  /// 插值估算锚点新偏移先跳过去，随后锚点必然进入布局窗口再做精准
+  /// 校正。一次性 O(可见+缓存) 遍历，无高频监听，零持续性能开销。
+  void _preserveTopAnchorAcrossRebuild() {
+    if (!_scrollController.hasClients) return;
+    final capture = _captureTopAnchor();
+    if (capture == null) return;
+    _pendingAnchor = capture.$2;
+    _anchorOriginPixels = _scrollController.position.pixels;
+    _anchorOldOffsets = capture.$1;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _applyPendingAnchor(chains: 6),
+    );
+  }
+
+  /// 应用锚点补偿：链式最多 [chains] 次续帧，直至锚点收敛或预算耗尽
+  void _applyPendingAnchor({required int chains}) {
+    if (!mounted || !_scrollController.hasClients) return _pendingAnchor = null;
+    final anchor = _pendingAnchor;
+    if (anchor == null) return;
+    final sliver = _findMessageListSliver();
+    if (sliver == null) return _pendingAnchor = null;
+    // 新鲜盒链查找锚点；盒链不含 keepAlive 陈旧条目，offset 全部可信
+    double? newOffset;
+    double? nearestLagDelta;
+    int? nearestDistance;
+    RenderBox? node = sliver.firstChild;
+    while (node != null) {
+      final data = node.parentData;
+      if (data is! SliverMultiBoxAdaptorParentData) continue;
+      final index = data.index;
+      final layoutOffset = data.layoutOffset;
+      if (index == null || layoutOffset == null) continue;
+      final oldOffset = _anchorOldOffsets?[index];
+      if (oldOffset != null) {
+        final distance = (index - anchor.$2).abs();
+        if (nearestDistance == null || distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestLagDelta = layoutOffset - oldOffset;
+        }
+      }
+      if (index == anchor.$2) newOffset = layoutOffset;
+      node = sliver.childAfter(node);
+    }
+    final offset = newOffset;
+    if (offset == null) {
+      // 锚点尚未被重新布局 (高度剧变一次性把它推出缓存窗口)：
+      // 用最近的新鲜子项的偏移增量插值估算先跳过去，令锚点在下一帧
+      // 进入布局窗口，随后再做精准补偿；keepAlive 陈旧条目不参与
+      if (chains > 0) {
+        final delta = nearestLagDelta;
+        final origin = _anchorOriginPixels;
+        if (delta != null && origin != null && delta.abs() > 1.0) {
+          final pos = _scrollController.position;
+          final target = (origin + delta)
+              .clamp(pos.minScrollExtent, pos.maxScrollExtent)
+              .toDouble();
+          _suppressScrollIntentNote = true;
+          _scrollController.jumpTo(target);
+          _suppressScrollIntentNote = false;
+        }
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _applyPendingAnchor(chains: chains - 1),
+        );
+      } else {
+        _pendingAnchor = null;
+      }
+      return;
+    }
+    final origin = _anchorOriginPixels;
+    if (origin == null) return _pendingAnchor = null;
+    // 绝对定位式补偿：视口顶边到锚点顶部的相对距离 (anchor.$1 - origin)
+    // 在展开前后必须保持不变，与当前 pixels 无关
+    final desired = offset - (anchor.$1 - origin);
+    final pos = _scrollController.position;
+    if ((pos.pixels - desired).abs() <= 0.5) {
+      _pendingAnchor = null; // 已收敛
+      return;
+    }
+    final target = desired.clamp(pos.minScrollExtent, pos.maxScrollExtent).toDouble();
+    _suppressScrollIntentNote = true;
+    _scrollController.jumpTo(target);
+    _suppressScrollIntentNote = false;
+    // 以新偏移为基准续链，结算剩余晚到布局
+    _pendingAnchor = (offset, anchor.$2);
+    if (chains > 0) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _applyPendingAnchor(chains: chains - 1),
+      );
+    } else {
+      _pendingAnchor = null;
+    }
   }
 
   /// 切换至历史时刻回溯视图 (流式中则先中断)
@@ -271,6 +474,23 @@ class AgentChatCardState extends State<AgentChatCard> {
     }
 
     if (_currentView == _AgentCardView.chat) {
+      // 流式收尾瞬间：流式气泡被定稿消息替换 (Element 换型 + 进度条剥离)，
+      // 末尾高度可能瞬态落差几到几十像素；未暂停跟随时静默贴底结算
+      final streamingNow = widget.viewModel.isChatStreaming;
+      if (_wasStreaming && !streamingNow && !_followSuspended) {
+        _lastUserScrollIntentAt = null;
+        _scrollToBottom(animate: false);
+      }
+      _wasStreaming = streamingNow;
+      // 思考块全局展开/折叠 (Ctrl+O/状态切换): 所有思考块同时改变高度，
+      // 视口内容会被整个推走——捕获顶部锚点并在重建后静默补偿
+      final thinkingNow = widget.viewModel.isThinkingExpanded;
+      if (thinkingNow != _lastThinkingExpanded) {
+        _lastThinkingExpanded = thinkingNow;
+        _preserveTopAnchorAcrossRebuild();
+      }
+      // 结构性通知 (消息入列/工具结果等) 不一定伴随流式文本增量，
+      // build 里与 ListenableBuilder 的增量回调双路驱动跟随判断
       _autoScrollOnStream();
     }
 
@@ -299,7 +519,7 @@ class AgentChatCardState extends State<AgentChatCard> {
                 onPointerDown: (_) => _noteUserScrollIntent(),
                 onPointerUp: (_) => _resumeFollowingAtBottom(),
                 onPointerCancel: (_) => _resumeFollowingAtBottom(),
-                onPointerSignal: (_) => _noteUserScrollIntent(),
+                onPointerSignal: _onPointerSignal,
                 child: NotificationListener<ScrollNotification>(
                   onNotification: _onScrollNotification,
                   child: _buildMessageList(),
