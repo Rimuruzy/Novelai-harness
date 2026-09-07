@@ -8,6 +8,8 @@ import 'package:flutter/rendering.dart'
         SliverMultiBoxAdaptorParentData;
 import 'package:flutter/services.dart';
 import '../../../core/context_l10n.dart';
+import '../../../../core/harness/tools/ask_user_tool.dart';
+import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
@@ -73,6 +75,30 @@ class AgentChatCardState extends State<AgentChatCard> {
   /// 程序化补偿跳转进行中标记：跳转产生的 ScrollUpdateNotification
   /// 不得被误判为用户上翻意图 (同步派发, 标志随调用栈生效)
   bool _suppressScrollIntentNote = false;
+
+  /// 当前按下的指针计数 (握把按住/多点触控)。指针未松开时
+  /// ScrollEndNotification 的贴底恢复一律延迟，防止按住握把瞬间
+  /// hold → didEndScroll 伪装的“回到底部”误恢复底部跟随。
+  int _pressedPointers = 0;
+
+  /// 拖拽期间冻结消息列表渲染数据源：Flutter 滚动条握把位移经
+  /// ``_getPrimaryDelta`` 做「拖拽起点握把位置 × 当前内容高度」的绝对映射，
+  /// 拖拽途中内容高度变化 (流式增长 / 流式结束气泡消失) 会污染映射基准，
+  /// 下一次握把移动立刻瞬移 (方向冲突增量兜底只覆盖一半组合)。
+  /// 手势期间冻结渲染内容使内容高度恒定、映射自洽；手势结束恢复实时数据。
+  bool _thumbHeld = false;
+  bool _listDragActive = false;
+  List<AgentMessage>? _frozenMessages;
+  bool _frozenStreamingActive = false;
+  AgentQuestionPrompt? _frozenQuestion;
+  bool _frozenThinkingExpanded = false;
+  Widget? _frozenStreamingBubble;
+
+  /// 消息列表区域定位键 (判定指针是否落在右侧滚动条握把热区)
+  final GlobalKey _messageListAreaKey = GlobalKey();
+
+  bool get _extentFrozen =>
+      _frozenMessages != null && (_thumbHeld || _listDragActive);
 
   /// 高度突变补偿锚点: (item 下标, 重建前布局偏移)
   (double, int)? _pendingAnchor;
@@ -233,6 +259,44 @@ class AgentChatCardState extends State<AgentChatCard> {
     _followEpoch++;
   }
 
+  /// 指针是否落在消息流右侧滚动条握把热区 (厚度 6px + 悬停余量)
+  bool _isScrollbarZonePress(PointerDownEvent event) {
+    final render = _messageListAreaKey.currentContext?.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) return false;
+    return event.localPosition.dx >= render.size.width - 20;
+  }
+
+  /// 冻结开始：以当前实时数据拍快照 (重复调用幂等，不覆盖旧快照)
+  void _engageExtentFreeze() {
+    if (_frozenMessages != null) return;
+    _frozenMessages = List<AgentMessage>.of(widget.viewModel.messages);
+    _frozenStreamingActive = widget.viewModel.isChatStreaming;
+    _frozenQuestion = widget.viewModel.activeQuestionPrompt;
+    _frozenThinkingExpanded = widget.viewModel.isThinkingExpanded;
+  }
+
+  /// 冻结解除：恢复实时数据渲染；若手势结束在底部 (跟随已恢复)，
+  /// 静默贴底一次把冻结期内增长的内容收进视口
+  void _maybeUnfreezeExtent() {
+    if (_thumbHeld || _listDragActive) return;
+    if (_frozenMessages == null) return;
+    _frozenMessages = null;
+    _frozenQuestion = null;
+    _frozenStreamingBubble = null;
+    final backAtBottom = !_followSuspended;
+    setState(() {});
+    if (backAtBottom) _scrollToBottom(animate: false);
+  }
+
+  /// 无条件清理冻结状态 (视图切换 / 会话切换时陈旧快照保护)
+  void _clearExtentFreeze() {
+    _thumbHeld = false;
+    _listDragActive = false;
+    _frozenMessages = null;
+    _frozenQuestion = null;
+    _frozenStreamingBubble = null;
+  }
+
   void _resumeFollowingAtBottom() {
     if (_scrollController.hasClients &&
         !_scrollController.position.isScrollingNotifier.value &&
@@ -247,6 +311,12 @@ class AgentChatCardState extends State<AgentChatCard> {
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
       _noteUserScrollIntent();
+      // 触控拖内容 / 握把起手双通路：内容拖拽走这里冻结
+      // (握把按下已由指针热区提前冻结，此处幂等)
+      if (!_listDragActive) {
+        _listDragActive = true;
+        _engageExtentFreeze();
+      }
     }
     // 任何非拖拽来源的向上位移都视为用户上翻意图 (键盘方向键/PgUp、触控板等
     // 没有指针事件的滚动方式全靠这里兜底侦测)。程序化跟随只会向下跳底，
@@ -258,11 +328,20 @@ class AgentChatCardState extends State<AgentChatCard> {
       _noteUserScrollIntent();
     }
     if (notification is ScrollEndNotification &&
+        _pressedPointers == 0 &&
         notification.metrics.extentAfter <= 1.0) {
       // 严格贴底 (extentAfter≈0) 即视为回到流式跟随场景：
-      // 清冷却与暂停，随新输出继续跟随；微小上滚后的位置保持粘性
+      // 清冷却与暂停，随新输出继续跟随；微小上滚后的位置保持粘性。
+      // 指尖/握把仍按着时 (hold → didEndScroll 会伪装出 ScrollEnd)
+      // 不得恢复跟随，冻结结束后的真实滚落由 _maybeUnfreezeExtent 补贴底。
       _followSuspended = false;
       _lastUserScrollIntentAt = null;
+    }
+    if (notification is ScrollEndNotification) {
+      // 必须在贴底恢复判定之后解冻：拖拽结束恰在底部时，先让跟随恢复，
+      // 解冻补贴底才能把冻结期内增长的内容收进视口
+      _listDragActive = false;
+      _maybeUnfreezeExtent();
     }
     return false;
   }
@@ -397,7 +476,9 @@ class AgentChatCardState extends State<AgentChatCard> {
       _pendingAnchor = null; // 已收敛
       return;
     }
-    final target = desired.clamp(pos.minScrollExtent, pos.maxScrollExtent).toDouble();
+    final target = desired
+        .clamp(pos.minScrollExtent, pos.maxScrollExtent)
+        .toDouble();
     _suppressScrollIntentNote = true;
     _scrollController.jumpTo(target);
     _suppressScrollIntentNote = false;
@@ -449,8 +530,13 @@ class AgentChatCardState extends State<AgentChatCard> {
     final sessionId = widget.viewModel.currentSessionId;
     if (_renderedSessionId != sessionId) {
       _renderedSessionId = sessionId;
+      _clearExtentFreeze();
       _messageWidgetCache.clear();
       _scrollToBottom(animate: false);
+    }
+    // 非对话视图 (会话抽屉/回溯) 期间不得持陈旧冻结快照
+    if (_currentView != _AgentCardView.chat) {
+      _clearExtentFreeze();
     }
     switch (_currentView) {
       case _AgentCardView.sessions:
@@ -483,8 +569,11 @@ class AgentChatCardState extends State<AgentChatCard> {
       }
       _wasStreaming = streamingNow;
       // 思考块全局展开/折叠 (Ctrl+O/状态切换): 所有思考块同时改变高度，
-      // 视口内容会被整个推走——捕获顶部锚点并在重建后静默补偿
-      final thinkingNow = widget.viewModel.isThinkingExpanded;
+      // 视口内容会被整个推走——捕获顶部锚点并在重建后静默补偿。
+      // 拖拽冻结期间判定走冻结值，Ctrl+O 补偿随之推迟到手势解除冻结时生效
+      final thinkingNow = _extentFrozen
+          ? _frozenThinkingExpanded
+          : widget.viewModel.isThinkingExpanded;
       if (thinkingNow != _lastThinkingExpanded) {
         _lastThinkingExpanded = thinkingNow;
         _preserveTopAnchorAcrossRebuild();
@@ -516,9 +605,34 @@ class AgentChatCardState extends State<AgentChatCard> {
             // 对话消息流展示区域
             Expanded(
               child: Listener(
-                onPointerDown: (_) => _noteUserScrollIntent(),
-                onPointerUp: (_) => _resumeFollowingAtBottom(),
-                onPointerCancel: (_) => _resumeFollowingAtBottom(),
+                key: _messageListAreaKey,
+                onPointerDown: (event) {
+                  _noteUserScrollIntent();
+                  _pressedPointers++;
+                  // 落在右侧滚动条握把热区：立即冻结渲染内容，
+                  // 冻结期内任何流式增长/收缩都不改内容高度，
+                  // 握把绝对映射保持自洽，根除拖拽瞬移
+                  if (_isScrollbarZonePress(event) && !_thumbHeld) {
+                    _thumbHeld = true;
+                    _engageExtentFreeze();
+                  }
+                },
+                onPointerUp: (_) {
+                  _pressedPointers = _pressedPointers > 0
+                      ? _pressedPointers - 1
+                      : 0;
+                  _thumbHeld = false;
+                  _maybeUnfreezeExtent();
+                  _resumeFollowingAtBottom();
+                },
+                onPointerCancel: (_) {
+                  _pressedPointers = _pressedPointers > 0
+                      ? _pressedPointers - 1
+                      : 0;
+                  _thumbHeld = false;
+                  _maybeUnfreezeExtent();
+                  _resumeFollowingAtBottom();
+                },
                 onPointerSignal: _onPointerSignal,
                 child: NotificationListener<ScrollNotification>(
                   onNotification: _onScrollNotification,
@@ -694,10 +808,18 @@ class AgentChatCardState extends State<AgentChatCard> {
 
   /// 消息流: 历史消息 + 流式输出占位 + 内嵌提问卡片
   Widget _buildMessageList() {
-    final messages = widget.viewModel.messages;
-    final isStreaming = widget.viewModel.isChatStreaming;
-    final activePrompt = widget.viewModel.activeQuestionPrompt;
-    final thinkingExpanded = widget.viewModel.isThinkingExpanded;
+    // 握把/触控拖拽手势期间以冻结快照渲染，内容高度恒定
+    final frozen = _extentFrozen;
+    final messages = frozen ? _frozenMessages! : widget.viewModel.messages;
+    final isStreaming = frozen
+        ? _frozenStreamingActive
+        : widget.viewModel.isChatStreaming;
+    final activePrompt = frozen
+        ? _frozenQuestion
+        : widget.viewModel.activeQuestionPrompt;
+    final thinkingExpanded = frozen
+        ? _frozenThinkingExpanded
+        : widget.viewModel.isThinkingExpanded;
 
     final liveIds = messages.map((message) => message.id).toSet();
     _messageWidgetCache.removeWhere((id, _) => !liveIds.contains(id));
@@ -716,17 +838,24 @@ class AgentChatCardState extends State<AgentChatCard> {
       itemBuilder: (context, index) {
         if (index == messages.length && isStreaming) {
           // 流式增量局部刷新：只重建气泡子树，主工作台与参数面板零重绘；
-          // 气泡内容增长时顺带驱动底部跟随滚动判定
+          // 气泡内容增长时顺带驱动底部跟随滚动判定。
+          // 拖拽冻结期间返回最近一次构建的气泡实体，内容高度不动
           return ListenableBuilder(
             listenable: widget.viewModel.streamingText,
             builder: (context, _) {
+              final frozenBubble = _frozenStreamingBubble;
+              if (_extentFrozen && frozenBubble != null) {
+                return frozenBubble;
+              }
               _autoScrollOnStream();
-              return StreamingMessageBubble(
+              final bubble = StreamingMessageBubble(
                 thoughts: widget.viewModel.streamingText.thoughts,
                 content: widget.viewModel.streamingText.content,
-                thinkingExpanded: widget.viewModel.isThinkingExpanded,
+                thinkingExpanded: thinkingExpanded,
                 notice: widget.viewModel.streamingText.notice,
               );
+              _frozenStreamingBubble = bubble;
+              return bubble;
             },
           );
         }
