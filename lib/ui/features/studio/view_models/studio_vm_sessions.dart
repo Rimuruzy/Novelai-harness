@@ -59,9 +59,17 @@ mixin _StudioSessionsMixin on _StudioCore {
   }
 
   /// 删除指定会话
-  Future<void> deleteSession(String sessionId) async {
-    final isCurrent = sessionId == currentSessionId;
-    await _sessionLog.deleteSession(sessionId);
+  Future<void> deleteSession(String sessionId) => deleteSessions([sessionId]);
+
+  /// 批量删除只刷新一次；先中止当前会话，避免删除后又被流式记录重新写回。
+  Future<void> deleteSessions(Iterable<String> sessionIds) async {
+    final ids = sessionIds.toSet();
+    if (ids.isEmpty) return;
+    final isCurrent = ids.contains(currentSessionId);
+    if (isCurrent && _isChatStreaming) await abortChat();
+    for (final id in ids) {
+      await _sessionLog.deleteSession(id);
+    }
     if (isCurrent) {
       final remaining = await _sessionLog.listSessions();
       if (remaining.isNotEmpty) {

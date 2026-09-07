@@ -98,6 +98,36 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @chatStopOutput.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止输出 (Esc)'**
+  String get chatStopOutput;
+
+  /// No description provided for @sessionManage.
+  ///
+  /// In zh, this message translates to:
+  /// **'批量管理'**
+  String get sessionManage;
+
+  /// No description provided for @sessionSelectAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全选搜索结果'**
+  String get sessionSelectAll;
+
+  /// No description provided for @sessionSelectedCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选 {count} 项'**
+  String sessionSelectedCount(int count);
+
+  /// No description provided for @sessionDeleteBatchConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除选中的 {count} 个会话？此操作无法撤销。'**
+  String sessionDeleteBatchConfirm(int count);
+
   /// No description provided for @appTitle.
   ///
   /// In zh, this message translates to:

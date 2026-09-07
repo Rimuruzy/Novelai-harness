@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/context_l10n.dart';
-import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 
 /// 通用折叠块: 头部行 + 可展开主体 (Pi 风格，默认折叠)
 class CollapsibleTile extends StatefulWidget {
   final Widget header;
   final Widget? body;
+  final WidgetBuilder? bodyBuilder;
   final EdgeInsetsGeometry margin;
 
   /// 外部受控展开状态 (为 null 时使用内部自持状态)
@@ -19,6 +19,7 @@ class CollapsibleTile extends StatefulWidget {
     super.key,
     required this.header,
     this.body,
+    this.bodyBuilder,
     this.margin = const EdgeInsets.only(bottom: 4),
     this.isExpanded,
     this.onToggle,
@@ -44,25 +45,18 @@ class _CollapsibleTileState extends State<CollapsibleTile> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final hasBody = widget.body != null;
+    final hasBody = widget.body != null || widget.bodyBuilder != null;
     final expanded = _effectiveExpanded;
     return Container(
       margin: widget.margin,
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: colors.borderDefault),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
             onTap: hasBody ? _handleToggle : null,
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(AppRadius.sm),
-            ),
+            borderRadius: BorderRadius.circular(4),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              padding: const EdgeInsets.symmetric(vertical: 7),
               child: Row(
                 children: [
                   Expanded(child: widget.header),
@@ -82,8 +76,8 @@ class _CollapsibleTileState extends State<CollapsibleTile> {
           ),
           if (hasBody && expanded)
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: widget.body,
+              padding: const EdgeInsets.only(bottom: 10),
+              child: widget.bodyBuilder?.call(context) ?? widget.body,
             ),
         ],
       ),
@@ -154,13 +148,8 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
           ],
         ],
       ),
-      body: Container(
+      bodyBuilder: (context) => SizedBox(
         width: double.infinity,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: colors.canvasBackground,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
         child: SelectableText(
           widget.thoughts,
           style: TextStyle(
@@ -171,6 +160,62 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 只扫描到第一条有效行，流式更新时不拆分整段思考文本。
+String firstNonEmptyLine(String text) {
+  var start = 0;
+  while (start < text.length) {
+    final end = text.indexOf(String.fromCharCode(10), start);
+    final line = text.substring(start, end < 0 ? text.length : end).trim();
+    if (line.isNotEmpty) return line;
+    if (end < 0) break;
+    start = end + 1;
+  }
+  return '';
+}
+
+/// 无业务状态的时间线轨道；线条使用 Stack 定位，不额外执行固有高度测量。
+/// 相邻节点不留外边距，因此跨消息、跨工具结果的轨道自然连通。
+class AgentTimelineStep extends StatelessWidget {
+  final Widget child;
+  final Color? accent;
+
+  const AgentTimelineStep({super.key, required this.child, this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Stack(
+      children: [
+        Positioned(
+          left: 7,
+          top: 0,
+          bottom: 0,
+          child: SizedBox(
+            width: 1,
+            child: ColoredBox(color: colors.borderDefault),
+          ),
+        ),
+        Positioned(
+          left: 4,
+          top: 13,
+          child: Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: accent ?? colors.textMuted,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 24, bottom: 8),
+          child: child,
+        ),
+      ],
     );
   }
 }

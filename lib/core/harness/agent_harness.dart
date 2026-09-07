@@ -56,6 +56,10 @@ class AgentHarness {
   /// 只有本轮新产生的图片会真正发给模型 (一次性展示)，
   /// 更早轮次的图片在构建请求时折叠为固定占位文本。
   int _sendEpoch = 0;
+  _HarnessRun? _activeRun;
+
+  /// 中断等待中的模型流、退避和工具结果；已发出的外部副作用不能撤回。
+  void abort() => _activeRun?.cancel();
 
   /// 压缩摘要 (压缩后更早消息的替身，仅存在于 LLM 请求上下文中)
   String? _compactionSummary;
@@ -115,230 +119,281 @@ class AgentHarness {
     String userText, {
     double temperature = 0.7,
     List<AgentMessageImage>? images,
-  }) async* {
+  }) {
     final hasImages = images != null && images.isNotEmpty;
-    if (userText.trim().isEmpty && !hasImages) return;
+    if (userText.trim().isEmpty && !hasImages) return const Stream.empty();
+    if (_activeRun != null) throw StateError('Agent 已在运行');
+    final run = _HarnessRun();
+    _activeRun = run;
+    return _send(userText, temperature: temperature, images: images, run: run);
+  }
 
-    // 新一轮发送：本轮新增的图片对模型可见，更早轮次的图片折叠为占位符
-    _sendEpoch++;
+  Stream<HarnessEvent> _send(
+    String userText, {
+    required double temperature,
+    List<AgentMessageImage>? images,
+    required _HarnessRun run,
+  }) async* {
+    try {
+      // 新一轮发送：本轮新增的图片对模型可见，更早轮次的图片折叠为占位符
+      _sendEpoch++;
 
-    // 1. 记录用户消息
-    final userMsgId = 'user_${DateTime.now().millisecondsSinceEpoch}';
-    final userMsg = AgentMessage(
-      id: userMsgId,
-      role: AgentRole.user,
-      content: userText.trim(),
-      images: images ?? const [],
-      imageEpoch: _sendEpoch,
-    );
-    _messages.add(userMsg);
-    recorder?.recordMessage(userMsg);
+      // 1. 记录用户消息
+      final userMsgId = 'user_${DateTime.now().millisecondsSinceEpoch}';
+      final userMsg = AgentMessage(
+        id: userMsgId,
+        role: AgentRole.user,
+        content: userText.trim(),
+        images: images ?? const [],
+        imageEpoch: _sendEpoch,
+      );
+      _messages.add(userMsg);
+      recorder?.recordMessage(userMsg);
 
-    if (provider == null) {
-      yield ErrorEvent('未配置 LLM 提供商，请在设置中配置 API Key。');
-      return;
-    }
-
-    // 2. 一次性构建本轮上下文：系统提示词与工具白名单在循环内保持不变
-    final systemPrompt = buildSystemPrompt(currentPreset);
-    final activeTools = tools
-        .getAll()
-        .where((tool) => currentPreset.isToolEnabled(tool.name))
-        .toList();
-
-    // 长程执行循环：
-    // - 每轮流式请求对瞬态错误 (网络抖动 / 429 / 5xx / 流中断 / 空响应)
-    //   自动指数退避重试，预算耗尽才报错终止；
-    // - 工具轮数达到 [maxTurns] 后注入收尾提示，追加一轮无工具的
-    //   强制总结轮，保证对话永远以最终回答收尾而不是悬挂的工具结果；
-    // - 每轮请求前自适应检测上下文 Token，超过窗口阈值时自动压缩。
-    int completedToolTurns = 0;
-    bool wrapUpMode = false;
-
-    while (true) {
-      // ---- 上下文自适应压缩 ----
-      if (compactionEnabled && contextWindowTokens > 0) {
-        final window = contextWindowTokens - compactionReserveTokens;
-        if (_estimateContextTokens(systemPrompt) > window) {
-          final evt = await compactContext();
-          if (evt != null) yield evt;
-        }
+      if (provider == null) {
+        yield ErrorEvent('未配置 LLM 提供商，请在设置中配置 API Key。');
+        return;
       }
 
-      final toolsForTurn = wrapUpMode ? const <AgentTool>[] : activeTools;
+      // 2. 一次性构建本轮上下文：系统提示词与工具白名单在循环内保持不变
+      final systemPrompt = buildSystemPrompt(currentPreset);
+      final activeTools = tools
+          .getAll()
+          .where((tool) => currentPreset.isToolEnabled(tool.name))
+          .toList();
 
-      // ---- 单轮流式请求 + 自动重试 ----
-      AgentMessage? assistantMsg;
-      String? giveUpReason;
-      int attempt = 0;
+      // 长程执行循环：
+      // - 每轮流式请求对瞬态错误 (网络抖动 / 429 / 5xx / 流中断 / 空响应)
+      //   自动指数退避重试，预算耗尽才报错终止；
+      // - 工具轮数达到 [maxTurns] 后注入收尾提示，追加一轮无工具的
+      //   强制总结轮，保证对话永远以最终回答收尾而不是悬挂的工具结果；
+      // - 每轮请求前自适应检测上下文 Token，超过窗口阈值时自动压缩。
+      int completedToolTurns = 0;
+      bool wrapUpMode = false;
 
-      while (assistantMsg == null && giveUpReason == null) {
-        attempt++;
-        final assistantMsgId =
-            'asst_${DateTime.now().microsecondsSinceEpoch}_$attempt';
-        yield TurnStartEvent(assistantMsgId);
-
-        String content = '';
-        String thoughts = '';
-        TokenUsage? usage;
-        String? errorMessage;
-        bool errorTransient = false;
-        final List<ToolCall> toolCalls = [];
-
-        final stream = provider!.streamChat(
-          messages: _buildRequestMessages(systemPrompt),
-          tools: toolsForTurn,
-          temperature: temperature,
-          promptCacheKey: recorder?.sessionId,
-        );
-
-        await for (final event in stream) {
-          if (event is ThoughtDeltaEvent) {
-            thoughts += event.delta;
-            yield event;
-          } else if (event is ContentDeltaEvent) {
-            content += event.delta;
-            yield event;
-          } else if (event is ToolCallEvent) {
-            toolCalls.add(event.toolCall);
-            yield event;
-          } else if (event is UsageEvent) {
-            usage = event.usage;
-            yield event;
-          } else if (event is ErrorEvent) {
-            // 错误不直接透传：可重试时用 RetryEvent 呈现，彻底失败才统一报错
-            errorMessage = event.error;
-            errorTransient = event.transient;
+      while (!run.isCancelled) {
+        // ---- 上下文自适应压缩 ----
+        if (compactionEnabled && contextWindowTokens > 0) {
+          final window = contextWindowTokens - compactionReserveTokens;
+          if (_estimateContextTokens(systemPrompt) > window) {
+            final evt = await _compactContext(run: run);
+            if (run.isCancelled) return;
+            if (evt != null) yield evt;
           }
         }
 
-        // 瞬态错误: 指数退避后重试同轮请求 (上下文未变，可安全重发)
-        if (errorMessage != null) {
-          if (errorTransient && attempt < maxRetryAttempts) {
-            final delay = retryBaseDelay * (1 << (attempt - 1));
-            yield RetryEvent(
-              attempt: attempt + 1,
-              maxAttempts: maxRetryAttempts,
-              reason: errorMessage,
-              delay: delay,
-            );
-            await Future.delayed(delay);
-            continue;
+        final toolsForTurn = wrapUpMode ? const <AgentTool>[] : activeTools;
+
+        // ---- 单轮流式请求 + 自动重试 ----
+        AgentMessage? assistantMsg;
+        String? giveUpReason;
+        int attempt = 0;
+
+        while (assistantMsg == null && giveUpReason == null) {
+          attempt++;
+          final assistantMsgId =
+              'asst_${DateTime.now().microsecondsSinceEpoch}_$attempt';
+          yield TurnStartEvent(assistantMsgId);
+          if (run.isCancelled) return;
+
+          String content = '';
+          String thoughts = '';
+          TokenUsage? usage;
+          String? errorMessage;
+          bool errorTransient = false;
+          final List<ToolCall> toolCalls = [];
+
+          final stream = provider!.streamChat(
+            messages: _buildRequestMessages(systemPrompt),
+            tools: toolsForTurn,
+            temperature: temperature,
+            promptCacheKey: recorder?.sessionId,
+          );
+
+          await for (final event in run.events(stream)) {
+            if (event is ThoughtDeltaEvent) {
+              thoughts += event.delta;
+              yield event;
+            } else if (event is ContentDeltaEvent) {
+              content += event.delta;
+              yield event;
+            } else if (event is ToolCallEvent) {
+              toolCalls.add(event.toolCall);
+              yield event;
+            } else if (event is UsageEvent) {
+              usage = event.usage;
+              yield event;
+            } else if (event is ErrorEvent) {
+              // 错误不直接透传：可重试时用 RetryEvent 呈现，彻底失败才统一报错
+              errorMessage = event.error;
+              errorTransient = event.transient;
+            }
           }
-          giveUpReason = errorTransient
-              ? '连续 $maxRetryAttempts 次请求失败: $errorMessage'
-              : errorMessage;
-          break;
+
+          if (run.isCancelled) {
+            // 保存已显示的半截正文/思考，不把尚未执行的工具调用写入协议历史。
+            if (content.isNotEmpty || thoughts.isNotEmpty) {
+              final partial = AgentMessage(
+                id: assistantMsgId,
+                role: AgentRole.assistant,
+                content: content,
+                thoughts: thoughts,
+                usage: usage,
+                provider: providerLabel,
+                model: provider?.modelId,
+                imageEpoch: _sendEpoch,
+              );
+              _messages.add(partial);
+              recorder?.recordMessage(partial);
+            }
+            return;
+          }
+
+          // 瞬态错误: 指数退避后重试同轮请求 (上下文未变，可安全重发)
+          if (errorMessage != null) {
+            if (errorTransient && attempt < maxRetryAttempts) {
+              final delay = retryBaseDelay * (1 << (attempt - 1));
+              yield RetryEvent(
+                attempt: attempt + 1,
+                maxAttempts: maxRetryAttempts,
+                reason: errorMessage,
+                delay: delay,
+              );
+              await run.wait(Future<void>.delayed(delay));
+              if (run.isCancelled) return;
+              continue;
+            }
+            giveUpReason = errorTransient
+                ? '连续 $maxRetryAttempts 次请求失败: $errorMessage'
+                : errorMessage;
+            break;
+          }
+
+          // 空响应保护: 无正文无思考无工具调用视为异常响应，占用同一重试预算
+          if (content.isEmpty && thoughts.isEmpty && toolCalls.isEmpty) {
+            if (attempt < maxRetryAttempts) {
+              const reason = '模型返回空响应';
+              final delay = retryBaseDelay * (1 << (attempt - 1));
+              yield RetryEvent(
+                attempt: attempt + 1,
+                maxAttempts: maxRetryAttempts,
+                reason: reason,
+                delay: delay,
+              );
+              await run.wait(Future<void>.delayed(delay));
+              if (run.isCancelled) return;
+              continue;
+            }
+            giveUpReason = '模型连续 $maxRetryAttempts 次返回空响应，请检查模型配置或稍后重试。';
+            break;
+          }
+
+          assistantMsg = AgentMessage(
+            id: assistantMsgId,
+            role: AgentRole.assistant,
+            content: content,
+            thoughts: thoughts,
+            toolCalls: toolCalls.isNotEmpty ? toolCalls : null,
+            usage: usage,
+            provider: providerLabel,
+            model: provider?.modelId,
+            imageEpoch: _sendEpoch,
+          );
         }
 
-        // 空响应保护: 无正文无思考无工具调用视为异常响应，占用同一重试预算
-        if (content.isEmpty && thoughts.isEmpty && toolCalls.isEmpty) {
-          if (attempt < maxRetryAttempts) {
-            const reason = '模型返回空响应';
-            final delay = retryBaseDelay * (1 << (attempt - 1));
-            yield RetryEvent(
-              attempt: attempt + 1,
-              maxAttempts: maxRetryAttempts,
-              reason: reason,
-              delay: delay,
-            );
-            await Future.delayed(delay);
-            continue;
-          }
-          giveUpReason = '模型连续 $maxRetryAttempts 次返回空响应，请检查模型配置或稍后重试。';
-          break;
+        // 重试预算耗尽: 报错终止本次对话 (半截内容不落盘)
+        if (assistantMsg == null) {
+          yield ErrorEvent(giveUpReason ?? '模型请求失败');
+          return;
         }
 
-        assistantMsg = AgentMessage(
-          id: assistantMsgId,
-          role: AgentRole.assistant,
-          content: content,
-          thoughts: thoughts,
-          toolCalls: toolCalls.isNotEmpty ? toolCalls : null,
-          usage: usage,
+        _messages.add(assistantMsg);
+        recorder?.recordMessage(
+          assistantMsg,
           provider: providerLabel,
           model: provider?.modelId,
-          imageEpoch: _sendEpoch,
         );
-      }
 
-      // 重试预算耗尽: 报错终止本次对话 (半截内容不落盘)
-      if (assistantMsg == null) {
-        yield ErrorEvent(giveUpReason ?? '模型请求失败');
-        return;
-      }
-
-      _messages.add(assistantMsg);
-      recorder?.recordMessage(
-        assistantMsg,
-        provider: providerLabel,
-        model: provider?.modelId,
-      );
-
-      // 没有工具调用，本次对话循环正常结束
-      final toolCalls = assistantMsg.toolCalls ?? const <ToolCall>[];
-      if (toolCalls.isEmpty) {
-        yield TurnEndEvent(assistantMsg);
-        return;
-      }
-
-      // 收尾轮不再提供工具 (理论不会出现调用)，直接以本轮回答结束
-      if (wrapUpMode) {
-        yield TurnEndEvent(assistantMsg);
-        return;
-      }
-
-      // 3. 执行工具调用并加入上下文
-      for (final call in toolCalls) {
-        final tool = tools.get(call.name);
-        ToolResult result;
-        if (tool == null) {
-          result = ToolResult(
-            toolCallId: call.id,
-            content: '错误：未知工具 "${call.name}"',
-            isError: true,
-          );
-        } else {
-          result = await tool.execute(call.id, call.arguments);
+        // 没有工具调用，本次对话循环正常结束
+        final toolCalls = assistantMsg.toolCalls ?? const <ToolCall>[];
+        if (toolCalls.isEmpty) {
+          yield TurnEndEvent(assistantMsg);
+          return;
         }
 
-        yield ToolResultEvent(result);
+        // 收尾轮不再提供工具 (理论不会出现调用)，直接以本轮回答结束
+        if (wrapUpMode) {
+          yield TurnEndEvent(assistantMsg);
+          return;
+        }
 
-        // 记录工具结果消息 (含可选的图片附件，供视觉模型查看；
-        // 图片只在当前轮次可见，之后的请求折叠为占位符)
-        final toolMsg = AgentMessage(
-          id: 'tool_${DateTime.now().millisecondsSinceEpoch}_${call.id}',
-          role: AgentRole.tool,
-          content: result.content,
-          toolCallId: call.id,
-          toolName: call.name,
-          isError: result.isError,
-          imageBase64: result.imageBase64,
-          imageMimeType: result.imageMimeType,
-          imageEpoch: _sendEpoch,
-        );
-        _messages.add(toolMsg);
-        recorder?.recordMessage(toolMsg);
+        // 3. 执行工具调用并加入上下文
+        for (final call in toolCalls) {
+          final tool = tools.get(call.name);
+          ToolResult result;
+          if (run.isCancelled) {
+            result = ToolResult(
+              toolCallId: call.id,
+              content: '用户已中断，工具调用未完成。',
+              isError: true,
+            );
+          } else if (tool == null) {
+            result = ToolResult(
+              toolCallId: call.id,
+              content: '错误：未知工具 "${call.name}"',
+              isError: true,
+            );
+          } else {
+            result =
+                await run.wait(tool.execute(call.id, call.arguments)) ??
+                ToolResult(
+                  toolCallId: call.id,
+                  content: '用户已中断；已启动的外部操作可能仍在执行。',
+                  isError: true,
+                );
+          }
+
+          // 记录工具结果消息 (含可选的图片附件，供视觉模型查看；
+          // 图片只在当前轮次可见，之后的请求折叠为占位符)
+          final toolMsg = AgentMessage(
+            id: 'tool_${DateTime.now().millisecondsSinceEpoch}_${call.id}',
+            role: AgentRole.tool,
+            content: result.content,
+            toolCallId: call.id,
+            toolName: call.name,
+            isError: result.isError,
+            imageBase64: result.imageBase64,
+            imageMimeType: result.imageMimeType,
+            imageEpoch: _sendEpoch,
+          );
+          _messages.add(toolMsg);
+          recorder?.recordMessage(toolMsg);
+          if (!run.isCancelled) yield ToolResultEvent(result);
+        }
+        if (run.isCancelled) return;
+
+        completedToolTurns++;
+
+        // 工具轮数达到上限: 注入收尾提示，下一轮进入无工具强制总结模式
+        if (completedToolTurns >= maxTurns) {
+          final nudgeMsg = AgentMessage(
+            id: 'limit_${DateTime.now().millisecondsSinceEpoch}',
+            role: AgentRole.user,
+            content:
+                '已达到本轮对话的最大工具调用轮数上限 ($maxTurns 轮)。'
+                '请立即基于已获得的信息给出最终回答，不要再调用任何工具。',
+            imageEpoch: _sendEpoch,
+          );
+          _messages.add(nudgeMsg);
+          recorder?.recordMessage(nudgeMsg);
+          wrapUpMode = true;
+        }
+
+        // 继续下一轮循环，让 LLM 根据工具结果生成最终回答
       }
-
-      completedToolTurns++;
-
-      // 工具轮数达到上限: 注入收尾提示，下一轮进入无工具强制总结模式
-      if (completedToolTurns >= maxTurns) {
-        final nudgeMsg = AgentMessage(
-          id: 'limit_${DateTime.now().millisecondsSinceEpoch}',
-          role: AgentRole.user,
-          content:
-              '已达到本轮对话的最大工具调用轮数上限 ($maxTurns 轮)。'
-              '请立即基于已获得的信息给出最终回答，不要再调用任何工具。',
-          imageEpoch: _sendEpoch,
-        );
-        _messages.add(nudgeMsg);
-        recorder?.recordMessage(nudgeMsg);
-        wrapUpMode = true;
-      }
-
-      // 继续下一轮循环，让 LLM 根据工具结果生成最终回答
+    } finally {
+      run.cancel();
+      if (identical(_activeRun, run)) _activeRun = null;
     }
   }
 
@@ -533,6 +588,7 @@ class AgentHarness {
   Future<String?> _generateSummary(
     List<AgentMessage> toSummarize, {
     String? previousSummary,
+    _HarnessRun? run,
   }) async {
     final p = provider;
     if (p == null) return null;
@@ -565,11 +621,12 @@ class AgentHarness {
     ];
 
     String summary = '';
-    await for (final event in p.streamChat(
+    final stream = p.streamChat(
       messages: requestMessages,
       tools: const <AgentTool>[],
       temperature: 0.3,
-    )) {
+    );
+    await for (final event in run == null ? stream : run.events(stream)) {
       if (event is ContentDeltaEvent) {
         summary += event.delta;
       } else if (event is ErrorEvent) {
@@ -586,7 +643,13 @@ class AgentHarness {
   /// 保留最后一个 user 轮次开始的近期对话。
   /// 原始消息仍保留在 [messages] 与会话落盘中，仅从 LLM 请求上下文移出。
   /// 无可压缩内容或摘要生成失败时返回 null。
-  Future<CompactionEvent?> compactContext({bool force = false}) async {
+  Future<CompactionEvent?> compactContext({bool force = false}) =>
+      _compactContext(force: force);
+
+  Future<CompactionEvent?> _compactContext({
+    bool force = false,
+    _HarnessRun? run,
+  }) async {
     if (!force && !compactionEnabled) return null;
     if (provider == null) return null;
 
@@ -601,7 +664,9 @@ class AgentHarness {
     final summaryText = await _generateSummary(
       toSummarize,
       previousSummary: _compactionSummary,
+      run: run,
     );
+    if (run?.isCancelled ?? false) return null;
     if (summaryText == null) return null;
 
     _compactionSummary = summaryText;
@@ -668,5 +733,62 @@ class AgentHarness {
   void _resetCompaction() {
     _compactionSummary = null;
     _contextStartIndex = 0;
+  }
+}
+
+/// 每轮独立的取消信号，不依赖 async* 的 subscription.cancel 等待上游返回。
+class _HarnessRun {
+  final Completer<void> _cancelled = Completer<void>();
+  bool get isCancelled => _cancelled.isCompleted;
+
+  void cancel() {
+    if (!isCancelled) _cancelled.complete();
+  }
+
+  Future<T?> wait<T>(Future<T> work) =>
+      Future.any<T?>([work, _cancelled.future.then<T?>((_) => null)]);
+
+  Stream<T> events<T>(Stream<T> source) {
+    late final StreamController<T> controller;
+    StreamSubscription<T>? subscription;
+    void cancelSource() {
+      final current = subscription;
+      subscription = null;
+      // 上游可能阻塞在网络或 async* await；清理不能反向阻塞中断。
+      if (current != null) {
+        unawaited(current.cancel().catchError((Object _) {}));
+      }
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        if (isCancelled) {
+          unawaited(controller.close());
+          return;
+        }
+        subscription = source.listen(
+          (event) {
+            if (!isCancelled && !controller.isClosed) controller.add(event);
+          },
+          onError: (Object error, StackTrace stack) {
+            if (!isCancelled && !controller.isClosed) {
+              controller.addError(error, stack);
+            }
+          },
+          onDone: () => unawaited(controller.close()),
+        );
+        // 每个请求仅注册一次取消监听，不按流式 token 累积 Future 回调。
+        unawaited(
+          _cancelled.future.then((_) {
+            cancelSource();
+            if (!controller.isClosed) unawaited(controller.close());
+          }),
+        );
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: cancelSource,
+    );
+    return controller.stream;
   }
 }

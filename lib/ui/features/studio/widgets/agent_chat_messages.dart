@@ -141,30 +141,27 @@ class AssistantMessageItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (message.thoughts.isNotEmpty)
-            ThinkingBlock(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (message.thoughts.isNotEmpty)
+          AgentTimelineStep(
+            child: ThinkingBlock(
               thoughts: message.thoughts,
               forceExpanded: thinkingExpanded,
             ),
-          if (message.content.isNotEmpty) ...[
-            if (message.thoughts.isNotEmpty) const SizedBox(height: 4),
-            MarkdownBody(
-              data: message.content,
-              selectable: true,
-              softLineBreak: true,
-              styleSheet: buildAgentMarkdownStyleSheet(context),
-            ),
-          ],
-          if (message.toolCalls != null)
-            for (final call in message.toolCalls!) ToolCallBlock(call: call),
+          ),
+        if (message.content.isNotEmpty) ...[
+          AgentTimelineStep(child: AgentMarkdownBody(data: message.content)),
         ],
-      ),
+        if (message.toolCalls != null)
+          for (final call in message.toolCalls!)
+            AgentTimelineStep(
+              key: ValueKey(call.id),
+              accent: context.colors.primary,
+              child: ToolCallBlock(call: call),
+            ),
+      ],
     );
   }
 }
@@ -179,18 +176,22 @@ class ToolCallBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return CollapsibleTile(
-      margin: const EdgeInsets.only(top: 4, bottom: 4),
+      margin: EdgeInsets.zero,
       header: Row(
         children: [
           Icon(Icons.build_circle_outlined, size: 14, color: colors.primary),
           const SizedBox(width: 4),
-          Text(
-            call.name,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'monospace',
-              color: colors.primary,
+          Flexible(
+            child: Text(
+              call.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'monospace',
+                color: colors.primary,
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -208,13 +209,8 @@ class ToolCallBlock extends StatelessWidget {
           ),
         ],
       ),
-      body: Container(
+      bodyBuilder: (context) => SizedBox(
         width: double.infinity,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: colors.canvasBackground,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
         child: SelectableText(
           const JsonEncoder.withIndent('  ').convert(call.arguments),
           style: TextStyle(
@@ -246,12 +242,8 @@ class ToolResultBlock extends StatelessWidget {
         : message.content.split('\n').first.trim();
     final accent = message.isError ? colors.error : colors.success;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.only(left: 8),
-      decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: colors.borderDefault, width: 2)),
-      ),
+    return AgentTimelineStep(
+      accent: accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -267,13 +259,17 @@ class ToolResultBlock extends StatelessWidget {
                   color: accent,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  message.toolName ?? 'tool',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'monospace',
-                    color: accent,
+                Flexible(
+                  child: Text(
+                    message.toolName ?? 'tool',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                      color: accent,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -291,14 +287,10 @@ class ToolResultBlock extends StatelessWidget {
                 ),
               ],
             ),
-            body: Container(
+            bodyBuilder: (context) => Container(
               width: double.infinity,
               constraints: const BoxConstraints(maxHeight: 320),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colors.canvasBackground,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
+
               child: SingleChildScrollView(
                 child: SelectableText(
                   message.content,
@@ -320,13 +312,13 @@ class ToolResultBlock extends StatelessWidget {
           if (message.imageBase64 != null && message.imageBase64!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 2),
-              child: Builder(
-                builder: (context) {
+              child: LayoutBuilder(
+                builder: (context, constraints) {
                   final bytes = message.imageBytes!;
-                  final panelWidth = MediaQuery.sizeOf(context).width;
+                  final panelWidth = constraints.maxWidth;
                   final dpr = MediaQuery.devicePixelRatioOf(context);
-                  // 对话卡面板宽度为窗口的一小部分，钳到安全上限保留清晰度
-                  final cacheWidth = (panelWidth * dpr / 2).round().clamp(
+                  // 使用实际可用宽度，不再用窗口宽度猜测面板尺寸。
+                  final cacheWidth = (panelWidth * dpr).round().clamp(
                     320,
                     1600,
                   );
@@ -391,102 +383,36 @@ class StreamingMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+    return AgentTimelineStep(
+      accent: colors.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (notice != null && notice!.isNotEmpty) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.cardBackground,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                border: Border.all(color: colors.borderDefault),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 11,
-                    height: 11,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      notice!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textMuted,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          if (notice != null && notice!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(notice!, style: TextStyle(color: colors.textMuted)),
             ),
-            const SizedBox(height: 6),
-          ],
-          if (thoughts.isNotEmpty) ...[
-            Row(
-              children: [
-                SizedBox(
-                  width: 11,
-                  height: 11,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: colors.textMuted,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  context.l10n.chatThinkingProgress,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    fontStyle: FontStyle.italic,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colors.cardBackground,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                border: Border.all(color: colors.borderDefault),
-              ),
+          if (thoughts.isNotEmpty)
+            ThinkingBlock(thoughts: thoughts, forceExpanded: thinkingExpanded),
+          if (content.isNotEmpty)
+            AgentMarkdownBody(data: content)
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                thoughts,
-                maxLines: thinkingExpanded ? null : 6,
-                overflow: thinkingExpanded
-                    ? TextOverflow.visible
-                    : TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: colors.textMuted,
-                  height: 1.45,
-                ),
+                thoughts.isEmpty
+                    ? context.l10n.chatConceiving
+                    : context.l10n.chatThinkingProgress,
+                style: TextStyle(fontSize: 12, color: colors.textMuted),
               ),
             ),
-            const SizedBox(height: 6),
-          ],
-          MarkdownBody(
-            data: content.isEmpty ? context.l10n.chatConceiving : content,
-            selectable: true,
-            softLineBreak: true,
-            styleSheet: buildAgentMarkdownStyleSheet(context),
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: SizedBox(
+              width: 24,
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
           ),
         ],
       ),
@@ -591,5 +517,38 @@ MarkdownStyleSheet buildAgentMarkdownStyleSheet(BuildContext context) {
     horizontalRuleDecoration: BoxDecoration(
       border: Border(top: BorderSide(color: colors.borderDefault, width: 1)),
     ),
+  );
+}
+
+/// 正文与思考增量分开缓存；仅正文或主题变化时重新创建 Markdown 子树。
+class AgentMarkdownBody extends StatefulWidget {
+  final String data;
+  const AgentMarkdownBody({super.key, required this.data});
+
+  @override
+  State<AgentMarkdownBody> createState() => _AgentMarkdownBodyState();
+}
+
+class _AgentMarkdownBodyState extends State<AgentMarkdownBody> {
+  Widget? _rendered;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _rendered = null;
+  }
+
+  @override
+  void didUpdateWidget(AgentMarkdownBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) _rendered = null;
+  }
+
+  @override
+  Widget build(BuildContext context) => _rendered ??= MarkdownBody(
+    data: widget.data,
+    selectable: true,
+    softLineBreak: true,
+    styleSheet: buildAgentMarkdownStyleSheet(context),
   );
 }

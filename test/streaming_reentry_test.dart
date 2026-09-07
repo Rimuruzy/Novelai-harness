@@ -31,6 +31,21 @@ void main() {
   // 因此断言按"本次发送的内容"过滤，不依赖消息总数。
 
   group('sendChatMessage 重入保护', () {
+    test('立即中断会完成发送 Future，并允许新会话继续发送', () async {
+      final pending = viewModel.sendChatMessage('abort-probe');
+      await viewModel.abortChat().timeout(const Duration(seconds: 1));
+      await pending.timeout(const Duration(seconds: 1));
+      expect(viewModel.isChatStreaming, isFalse);
+      await viewModel.createNewSession();
+      await viewModel.sendChatMessage('after-abort');
+      expect(
+        viewModel.messages
+            .where((m) => m.role == AgentRole.user)
+            .map((m) => m.content),
+        ['after-abort'],
+      );
+    });
+
     test('流式进行中重复调用被静默忽略，第二条不落入消息流', () async {
       final first = viewModel.sendChatMessage('reentry-probe-A');
       // 第一次调用在首个 await 前已同步置位 _isChatStreaming，

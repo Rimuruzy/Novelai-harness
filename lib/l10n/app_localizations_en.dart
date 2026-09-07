@@ -9,6 +9,25 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get chatStopOutput => 'Stop output (Esc)';
+
+  @override
+  String get sessionManage => 'Manage sessions';
+
+  @override
+  String get sessionSelectAll => 'Select search results';
+
+  @override
+  String sessionSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String sessionDeleteBatchConfirm(int count) {
+    return 'Delete $count selected sessions? This cannot be undone.';
+  }
+
+  @override
   String get appTitle => 'NovelAI Harness';
 
   @override

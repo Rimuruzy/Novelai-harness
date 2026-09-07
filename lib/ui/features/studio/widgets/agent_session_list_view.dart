@@ -32,6 +32,47 @@ class AgentSessionListView extends StatefulWidget {
 class _AgentSessionListViewState extends State<AgentSessionListView> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _selecting = false;
+  bool _busy = false;
+  final Set<String> _selectedIds = {};
+
+  void _toggleSelected(String id) => setState(() {
+    if (!_selectedIds.add(id)) _selectedIds.remove(id);
+  });
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteSelected() async {
+    final ids = _selectedIds.toList(growable: false);
+    if (ids.isEmpty) return;
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: context.l10n.sessionDeleteTitle,
+      message: context.l10n.sessionDeleteBatchConfirm(ids.length),
+      confirmLabel: context.l10n.sessionDeleteConfirmButton,
+      cancelLabel: context.l10n.sessionCancel,
+      isDestructive: true,
+    );
+    if (!mounted || confirmed != true) return;
+    await _runAction(() async {
+      await widget.viewModel.deleteSessions(ids);
+      if (mounted) setState(() => _selectedIds.removeAll(ids));
+    });
+  }
 
   @override
   void initState() {
@@ -70,8 +111,10 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
       confirmLabel: context.l10n.sessionSave,
       cancelLabel: context.l10n.sessionCancel,
     );
-    if (newName != null && newName.trim().isNotEmpty) {
-      widget.viewModel.renameSession(session.id, newName.trim());
+    if (mounted && newName != null && newName.trim().isNotEmpty) {
+      await _runAction(
+        () => widget.viewModel.renameSession(session.id, newName.trim()),
+      );
     }
   }
 
@@ -84,8 +127,8 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
       cancelLabel: context.l10n.sessionCancel,
       isDestructive: true,
     );
-    if (confirmed == true) {
-      widget.viewModel.deleteSession(session.id);
+    if (mounted && confirmed == true) {
+      await _runAction(() => widget.viewModel.deleteSession(session.id));
     }
   }
 
@@ -110,6 +153,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
     final sessions = widget.viewModel.sessions;
     final filtered = _getFilteredSessions(sessions);
     final currentId = widget.viewModel.currentSessionId;
+    _selectedIds.retainAll(sessions.map((session) => session.id));
 
     return Card(
       margin: EdgeInsets.zero,
@@ -133,7 +177,7 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                   size: 28,
                   iconSize: 14,
                   variant: AppIconButtonVariant.ghost,
-                  onPressed: widget.onBack,
+                  onPressed: _busy ? null : widget.onBack,
                 ),
                 const SizedBox(width: 4),
                 Icon(Icons.forum_outlined, size: 15, color: colors.primary),
@@ -169,10 +213,12 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                       borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
                   ),
-                  onPressed: () async {
-                    await widget.viewModel.createNewSession();
-                    widget.onBack();
-                  },
+                  onPressed: _busy
+                      ? null
+                      : () => _runAction(() async {
+                          await widget.viewModel.createNewSession();
+                          if (mounted) widget.onBack();
+                        }),
                 ),
               ],
             ),
@@ -190,6 +236,65 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
               onClear: () => _searchController.clear(),
             ),
           ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                if (_selecting) ...[
+                  Checkbox(
+                    value:
+                        filtered.isNotEmpty &&
+                        filtered.every((s) => _selectedIds.contains(s.id)),
+                    onChanged: _busy || filtered.isEmpty
+                        ? null
+                        : (value) => setState(() {
+                            final ids = filtered.map((s) => s.id);
+                            if (value == true) {
+                              _selectedIds.addAll(ids);
+                            } else {
+                              _selectedIds.removeAll(ids);
+                            }
+                          }),
+                    semanticLabel: context.l10n.sessionSelectAll,
+                  ),
+                  Expanded(
+                    child: Text(
+                      context.l10n.sessionSelectedCount(_selectedIds.length),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  AppIconButton(
+                    icon: Icons.delete_outline,
+                    tooltip: context.l10n.sessionDeleteAction,
+                    iconColor: colors.error,
+                    variant: AppIconButtonVariant.ghost,
+                    onPressed: _busy || _selectedIds.isEmpty
+                        ? null
+                        : _deleteSelected,
+                  ),
+                ] else
+                  const Spacer(),
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                          _selecting = !_selecting;
+                          _selectedIds.clear();
+                        }),
+                  child: Text(
+                    _selecting
+                        ? context.l10n.sessionCancel
+                        : context.l10n.sessionManage,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_busy) const LinearProgressIndicator(minHeight: 2),
 
           // 会话列表
           Expanded(
@@ -222,12 +327,20 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
   Widget _buildSessionCard(SessionInfo session, bool isCurrent) {
     final colors = context.colors;
     return InkWell(
-      onTap: () async {
-        if (!isCurrent) {
-          await widget.viewModel.switchSession(session.id);
-        }
-        widget.onBack();
-      },
+      onTap: _busy
+          ? null
+          : () {
+              if (_selecting) {
+                _toggleSelected(session.id);
+                return;
+              }
+              _runAction(() async {
+                if (!isCurrent) {
+                  await widget.viewModel.switchSession(session.id);
+                }
+                if (mounted) widget.onBack();
+              });
+            },
       borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Container(
         padding: const EdgeInsets.all(10),
@@ -249,6 +362,14 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
             // 头部：标题 + 当前会话标签 + 操作菜单
             Row(
               children: [
+                if (_selecting)
+                  Checkbox(
+                    value: _selectedIds.contains(session.id),
+                    onChanged: _busy
+                        ? null
+                        : (_) => _toggleSelected(session.id),
+                    semanticLabel: session.title,
+                  ),
                 if (isCurrent) ...[
                   AppBadge.pill(
                     label: context.l10n.sessionCurrentBadge,
@@ -271,68 +392,73 @@ class _AgentSessionListViewState extends State<AgentSessionListView> {
                     ),
                   ),
                 ),
-                PopupMenuButton<String>(
-                  icon: Icon(
-                    Icons.more_vert_rounded,
-                    size: 15,
-                    color: colors.textMuted,
-                  ),
-                  padding: EdgeInsets.zero,
-                  splashRadius: 16,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    side: BorderSide(color: colors.borderDefault),
-                  ),
-                  color: colors.cardBackground,
-                  itemBuilder: (ctx) => [
-                    PopupMenuItem(
-                      value: 'rename',
-                      height: 32,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.edit_outlined,
-                            size: 14,
-                            color: colors.textSecondary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            context.l10n.sessionRenameAction,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colors.textPrimary,
+                if (!_selecting)
+                  PopupMenuButton<String>(
+                    enabled: !_busy,
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      size: 15,
+                      color: colors.textMuted,
+                    ),
+                    padding: EdgeInsets.zero,
+                    splashRadius: 16,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      side: BorderSide(color: colors.borderDefault),
+                    ),
+                    color: colors.cardBackground,
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                        value: 'rename',
+                        height: 32,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.edit_outlined,
+                              size: 14,
+                              color: colors.textSecondary,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              context.l10n.sessionRenameAction,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      height: 32,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 14,
-                            color: colors.error,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            context.l10n.sessionDeleteAction,
-                            style: TextStyle(fontSize: 12, color: colors.error),
-                          ),
-                        ],
+                      PopupMenuItem(
+                        value: 'delete',
+                        height: 32,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              size: 14,
+                              color: colors.error,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              context.l10n.sessionDeleteAction,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.error,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                  onSelected: (action) {
-                    if (action == 'rename') {
-                      _showRenameDialog(session);
-                    } else if (action == 'delete') {
-                      _showDeleteConfirmDialog(session);
-                    }
-                  },
-                ),
+                    ],
+                    onSelected: (action) {
+                      if (action == 'rename') {
+                        _showRenameDialog(session);
+                      } else if (action == 'delete') {
+                        _showDeleteConfirmDialog(session);
+                      }
+                    },
+                  ),
               ],
             ),
             const SizedBox(height: 4),

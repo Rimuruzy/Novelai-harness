@@ -9,6 +9,25 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get chatStopOutput => '停止输出 (Esc)';
+
+  @override
+  String get sessionManage => '批量管理';
+
+  @override
+  String get sessionSelectAll => '全选搜索结果';
+
+  @override
+  String sessionSelectedCount(int count) {
+    return '已选 $count 项';
+  }
+
+  @override
+  String sessionDeleteBatchConfirm(int count) {
+    return '删除选中的 $count 个会话？此操作无法撤销。';
+  }
+
+  @override
   String get appTitle => 'NovelAI Harness';
 
   @override

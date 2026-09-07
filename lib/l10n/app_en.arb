@@ -1,5 +1,24 @@
 {
   "@@locale": "en",
+  "chatStopOutput": "Stop output (Esc)",
+  "sessionManage": "Manage sessions",
+  "sessionSelectAll": "Select search results",
+  "sessionSelectedCount": "{count} selected",
+  "@sessionSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sessionDeleteBatchConfirm": "Delete {count} selected sessions? This cannot be undone.",
+  "@sessionDeleteBatchConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "appTitle": "NovelAI Harness",
   "generateImage": "Generate Image",
   "startInpaint": "Start Inpaint",

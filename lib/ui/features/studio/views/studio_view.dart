@@ -66,6 +66,15 @@ class _StudioViewState extends State<StudioView> {
     // 双击 ESC 判定，长按 ESC 误触发回溯视图
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
 
+    // 输出期间 Esc 不依赖输入框/补全菜单的焦点冒泡，优先停止 Agent。
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (event is KeyRepeatEvent) return true;
+      if (_viewModel.isChatStreaming) {
+        _handleGlobalEsc();
+        return true;
+      }
+    }
+
     // 当处于批注模式时：
     if (_viewModel.board.isAnnotatingImage) {
       if (_isTypingText()) return false;
@@ -194,8 +203,8 @@ class _StudioViewState extends State<StudioView> {
 
   /// 根级 ESC：双击 400ms 内进入回溯视图；单击中断生成/流式
   ///
-  /// 焦点在对话卡内时由卡片自身的 onKeyEvent 先行处理 (handled)，不会走到这里；
-  /// 这里兜底的是焦点落在左侧面板或根部无焦点区域的场景。
+  /// 输出期间由 HardwareKeyboard 优先分发，其余场景由焦点链分发。
+  /// 对话卡通过 onEscape 复用同一计时器，避免跨焦点双击判定失效。
   void _handleGlobalEsc() {
     final now = DateTime.now();
     final isDoublePress =
@@ -204,10 +213,16 @@ class _StudioViewState extends State<StudioView> {
     _lastRootEscTime = now;
 
     if (isDoublePress) {
+      _lastRootEscTime = null;
       if (_viewModel.isChatStreaming) {
         _viewModel.abortChat();
       }
       _chatCardKey.currentState?.openRewindView();
+      return;
+    }
+
+    if (_viewModel.isChatStreaming) {
+      _viewModel.abortChat();
       return;
     }
 
@@ -379,6 +394,7 @@ class _StudioViewState extends State<StudioView> {
                                       : AgentChatCard(
                                           key: _chatCardKey,
                                           viewModel: _viewModel,
+                                          onEscape: _handleGlobalEsc,
                                         ),
                                 ),
                         ),

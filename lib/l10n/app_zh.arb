@@ -1,5 +1,24 @@
 {
   "@@locale": "zh",
+  "chatStopOutput": "停止输出 (Esc)",
+  "sessionManage": "批量管理",
+  "sessionSelectAll": "全选搜索结果",
+  "sessionSelectedCount": "已选 {count} 项",
+  "@sessionSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sessionDeleteBatchConfirm": "删除选中的 {count} 个会话？此操作无法撤销。",
+  "@sessionDeleteBatchConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "appTitle": "NovelAI Harness",
   "generateImage": "生成图片",
   "startInpaint": "开始修复",

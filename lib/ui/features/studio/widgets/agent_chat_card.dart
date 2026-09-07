@@ -5,6 +5,7 @@ import '../../../core/context_l10n.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
+import '../../../core/widgets/app_icon_button.dart';
 import '../view_models/studio_view_model.dart';
 import 'agent_chat_input_bar.dart';
 import 'agent_chat_messages.dart';
@@ -21,8 +22,9 @@ enum _AgentCardView { chat, sessions, rewind }
 
 class AgentChatCard extends StatefulWidget {
   final StudioViewModel viewModel;
+  final VoidCallback? onEscape;
 
-  const AgentChatCard({super.key, required this.viewModel});
+  const AgentChatCard({super.key, required this.viewModel, this.onEscape});
 
   @override
   State<AgentChatCard> createState() => AgentChatCardState();
@@ -115,7 +117,10 @@ class AgentChatCardState extends State<AgentChatCard> {
   ///   跟随跳转后链式校验最多 3 帧，兑底 maxScrollExtent 估算延迟结算。
   void _autoScrollOnStream() {
     if (_followSuspended || !widget.viewModel.isChatStreaming) return;
-    if (!_scrollController.hasClients) return;
+    if (!_scrollController.hasClients ||
+        !_scrollController.position.hasContentDimensions) {
+      return;
+    }
     // 估算 maxScrollExtent 结算滞后一到两帧，"跳到底"后可能仍差几十像素，
     // 臂时阈值放宽到 64px；链内用户上翻判定仍按 32px 严格把关
     final isAtBottom = _scrollController.position.extentAfter <= 64.0;
@@ -252,7 +257,7 @@ class AgentChatCardState extends State<AgentChatCard> {
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.escape) {
-          _handleEscKey();
+          (widget.onEscape ?? _handleEscKey)();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -310,95 +315,122 @@ class AgentChatCardState extends State<AgentChatCard> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // 预设选择框 (与模型选择框统一的圆角边框胶囊样式)
-          Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: colors.cardBackground,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: colors.borderDefault),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: currentPresetId,
-                isDense: true,
-                dropdownColor: colors.cardBackground,
-                icon: Icon(
-                  Icons.arrow_drop_down_rounded,
-                  size: 18,
-                  color: colors.textSecondary,
-                ),
-                borderRadius: BorderRadius.circular(8),
-                menuMaxHeight: 400.0,
-                selectedItemBuilder: (context) {
-                  return presets.map((preset) {
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.psychology_outlined,
-                          size: 15,
-                          color: colors.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          preset.name,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList();
-                },
-                items: presets.map((preset) {
-                  final isSelected = preset.id == currentPresetId;
-                  return DropdownMenuItem<String>(
-                    value: preset.id,
-                    child: Tooltip(
-                      message: preset.description,
-                      waitDuration: const Duration(milliseconds: 500),
-                      child: Row(
+          Expanded(
+            child: Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: colors.borderDefault),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: currentPresetId,
+                  isDense: true,
+                  isExpanded: true,
+                  dropdownColor: colors.cardBackground,
+                  icon: Icon(
+                    Icons.arrow_drop_down_rounded,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  menuMaxHeight: 400.0,
+                  selectedItemBuilder: (context) {
+                    return presets.map((preset) {
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.psychology_outlined,
                             size: 15,
-                            color: isSelected
-                                ? colors.primary
-                                : colors.textMuted,
+                            color: colors.primary,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               preset.name,
-                              overflow: TextOverflow.ellipsis,
                               maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: isSelected
-                                    ? colors.primary
-                                    : colors.textPrimary,
+                                fontWeight: FontWeight.w500,
+                                color: colors.textPrimary,
                               ),
                             ),
                           ),
                         ],
+                      );
+                    }).toList();
+                  },
+                  items: presets.map((preset) {
+                    final isSelected = preset.id == currentPresetId;
+                    return DropdownMenuItem<String>(
+                      value: preset.id,
+                      child: Tooltip(
+                        message: preset.description,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.psychology_outlined,
+                              size: 15,
+                              color: isSelected
+                                  ? colors.primary
+                                  : colors.textMuted,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                preset.name,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? colors.primary
+                                      : colors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (presetId) {
-                  if (presetId != null) {
-                    final p = presets.firstWhere((e) => e.id == presetId);
-                    widget.viewModel.selectPreset(p);
-                  }
-                },
+                    );
+                  }).toList(),
+                  onChanged: (presetId) {
+                    if (presetId != null) {
+                      final p = presets.firstWhere((e) => e.id == presetId);
+                      widget.viewModel.selectPreset(p);
+                    }
+                  },
+                ),
               ),
             ),
+          ),
+          const SizedBox(width: 6),
+          if (widget.viewModel.isChatStreaming)
+            AppIconButton(
+              icon: Icons.stop_rounded,
+              tooltip: context.l10n.chatStopOutput,
+              iconColor: colors.error,
+              variant: AppIconButtonVariant.ghost,
+              onPressed: widget.viewModel.abortChat,
+            ),
+          AppIconButton(
+            icon: Icons.add_comment_outlined,
+            tooltip: context.l10n.sessionNew,
+            variant: AppIconButtonVariant.ghost,
+            onPressed: widget.viewModel.isChatStreaming
+                ? null
+                : () async {
+                    await widget.viewModel.createNewSession();
+                    if (mounted) _scrollToBottom(animate: false);
+                  },
           ),
           IconButton(
             icon: Icon(Icons.forum_outlined, size: 16, color: colors.textMuted),
@@ -409,7 +441,6 @@ class AgentChatCardState extends State<AgentChatCard> {
               setState(() {
                 _currentView = _AgentCardView.sessions;
               });
-              widget.viewModel.refreshSessions();
             },
             visualDensity: VisualDensity.compact,
           ),

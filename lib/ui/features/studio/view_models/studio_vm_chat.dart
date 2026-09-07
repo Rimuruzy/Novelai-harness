@@ -2,6 +2,8 @@ part of 'studio_view_model.dart';
 
 /// 对话流 / ask_user 提问 / 付费确认 / Token 用量记录
 mixin _StudioChatMixin on _StudioCore {
+  Completer<void>? _chatCompletion;
+
   /// 立即全局刷新：仅用于低频结构变化 (消息列表变更 / 流开始结束 / 错误等)。
   /// 思考链与正文的高频增量由 [streamingText] 控制器局部刷新，
   /// 不再触发全工作台 notifyListeners()。
@@ -65,6 +67,7 @@ mixin _StudioChatMixin on _StudioCore {
     notifyListeners();
 
     final completer = Completer<void>();
+    _chatCompletion = completer;
 
     try {
       final stream = _harness.send(
@@ -130,6 +133,7 @@ mixin _StudioChatMixin on _StudioCore {
       _errorMessage = vmL10n.vmChatError('$e');
     } finally {
       _chatSubscription = null;
+      _chatCompletion = null;
       _isChatStreaming = false;
       _streamingText.reset();
       await refreshSessions();
@@ -141,10 +145,14 @@ mixin _StudioChatMixin on _StudioCore {
   @override
   Future<void> abortChat() async {
     if (!_isChatStreaming) return;
-    await _chatSubscription?.cancel();
-    _chatSubscription = null;
-    _isChatStreaming = false;
-    _streamingText.reset();
+    final completion = _chatCompletion;
+    _harness.abort();
+    final question = _activeQuestionPrompt;
+    if (question != null && !question.completer.isCompleted) {
+      question.completer.complete(null);
+    }
+    // 由正常 onDone 收尾，避免 cancel() 等待网络、且不再令 send 的 Future 永久挂起。
+    await completion?.future;
     _statusMessage = vmL10n.vmChatForceAborted;
     _notifyNow();
   }
