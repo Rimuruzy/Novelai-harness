@@ -13,6 +13,7 @@ import '../../../../core/harness/types.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_context_extensions.dart';
 import '../../../core/widgets/smooth_scroll_controller.dart';
+import '../../../core/widgets/stable_scrollbar.dart';
 import '../../../core/widgets/app_icon_button.dart';
 import '../view_models/studio_view_model.dart';
 import 'agent_chat_input_bar.dart';
@@ -85,7 +86,8 @@ class AgentChatCardState extends State<AgentChatCard> {
   /// ``_getPrimaryDelta`` 做「拖拽起点握把位置 × 当前内容高度」的绝对映射，
   /// 拖拽途中内容高度变化 (流式增长 / 流式结束气泡消失) 会污染映射基准，
   /// 下一次握把移动立刻瞬移 (方向冲突增量兜底只覆盖一半组合)。
-  /// 手势期间冻结渲染内容使内容高度恒定、映射自洽；手势结束恢复实时数据。
+  /// 手势期间冻结实时内容，手势结束恢复；注意 SliverList 的总高度估算
+  /// 仍会随懒加载窗口变化，握把映射由 StableScrollbar 独立稳定。
   bool _thumbHeld = false;
   bool _listDragActive = false;
   List<AgentMessage>? _frozenMessages;
@@ -611,7 +613,7 @@ class AgentChatCardState extends State<AgentChatCard> {
                   _pressedPointers++;
                   // 落在右侧滚动条握把热区：立即冻结渲染内容，
                   // 冻结期内任何流式增长/收缩都不改内容高度，
-                  // 握把绝对映射保持自洽，根除拖拽瞬移
+                  // 这里只隔离实时内容变化，懒加载估算变化由 StableScrollbar 处理
                   if (_isScrollbarZonePress(event) && !_thumbHeld) {
                     _thumbHeld = true;
                     _engageExtentFreeze();
@@ -808,7 +810,7 @@ class AgentChatCardState extends State<AgentChatCard> {
 
   /// 消息流: 历史消息 + 流式输出占位 + 内嵌提问卡片
   Widget _buildMessageList() {
-    // 握把/触控拖拽手势期间以冻结快照渲染，内容高度恒定
+    // 握把/触控拖拽手势期间以冻结快照渲染，延后实时内容增删
     final frozen = _extentFrozen;
     final messages = frozen ? _frozenMessages! : widget.viewModel.messages;
     final isStreaming = frozen
@@ -824,7 +826,7 @@ class AgentChatCardState extends State<AgentChatCard> {
     final liveIds = messages.map((message) => message.id).toSet();
     _messageWidgetCache.removeWhere((id, _) => !liveIds.contains(id));
 
-    return ListView.builder(
+    final list = ListView.builder(
       key: ValueKey(widget.viewModel.currentSessionId),
       controller: _scrollController,
       padding: const EdgeInsets.all(12),
@@ -887,6 +889,17 @@ class AgentChatCardState extends State<AgentChatCard> {
         _messageWidgetCache[message.id] = built;
         return built;
       },
+    );
+    final theme = ScrollbarTheme.of(context);
+    return StableScrollbar(
+      controller: _scrollController,
+      thumbColor: theme.thumbColor?.resolve({}),
+      thickness: theme.thickness?.resolve({}),
+      radius: theme.radius,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: list,
+      ),
     );
   }
 }

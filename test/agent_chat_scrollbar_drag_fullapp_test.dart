@@ -12,13 +12,10 @@ import 'package:novelai_harness/ui/features/studio/views/studio_view.dart';
 import 'package:novelai_harness/ui/features/studio/widgets/agent_chat_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 完整应用装配下的握把拖拽瞬移回归：
-/// Flutter RawScrollbar._getPrimaryDelta 以「拖拽起点握把位置 × 当前内容
-/// 高度」做绝对映射，拖拽途中内容高度变化 (流式增长 / 流式结束气泡消失
-/// 收缩) 会污染映射基准，下一次握把移动按污染映射瞬移；方向冲突增量
-/// 兜底仅覆盖「增长+上翻」等半数组合。修复：手势期间冻结消息列表渲染
-/// 数据源 (消息/流式气泡/提问卡片/思考展开态快照)，内容高度恒定、
-/// 映射自洽，手势结束恢复实时数据。
+/// 完整应用握把回归：静态变高列表也会随懒加载窗口重估总高度。
+/// 数据冻结只能隔离实时增删，不能稳定 SliverList 的估算值。
+/// 同时覆盖静态往返、手势取消、流式增长/收尾与松手解冻，
+/// 并断言实际发生滚动，禁止未命中握把时零位移假通过。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -33,6 +30,121 @@ void main() {
     try {
       await tempDir.delete(recursive: true);
     } catch (_) {}
+  });
+
+  testWidgets('静态变高消息: 握把跨懒加载窗口往返不跳位', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    await tester.pumpWidget(const NovelAiHarnessApp());
+    await tester.pumpAndSettle();
+    final vm = StudioView.testViewModelHook!;
+    vm.setMessagesForTesting([
+      for (var i = 0; i < 100; i++)
+        AgentMessage(
+          id: 'varied_$i',
+          role: AgentRole.assistant,
+          content:
+              '消息 $i\n${'内容行\n' * (i < 15
+                      ? 2
+                      : i < 45
+                      ? 45
+                      : 8)}',
+        ),
+    ]);
+    await tester.pumpAndSettle();
+    final list = tester.widget<ListView>(
+      find.descendant(
+        of: find.byType(AgentChatCard),
+        matching: find.byType(ListView),
+      ),
+    );
+    final controller = list.controller!;
+    controller.jumpTo(100);
+    await tester.pump();
+    controller.jumpTo(0);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final bar = find
+        .byWidgetPredicate((w) => w is RawScrollbar)
+        .evaluate()
+        .firstWhere((e) => (e.widget as RawScrollbar).controller == controller);
+    final rect = tester.getRect(find.byWidget(bar.widget));
+    final pos = controller.position;
+    final thumb =
+        (rect.height *
+                rect.height /
+                (pos.maxScrollExtent + pos.viewportDimension))
+            .clamp(18.0, rect.height);
+    final ratio = pos.maxScrollExtent / (rect.height - thumb);
+    final hover = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await hover.addPointer(location: Offset(rect.right - 8, rect.top + 20));
+    await hover.moveTo(Offset(rect.right - 8, rect.top + 20));
+    await tester.pump(const Duration(milliseconds: 200));
+    final painter =
+        tester
+                .widget<CustomPaint>(
+                  find
+                      .descendant(
+                        of: find.byWidget(bar.widget),
+                        matching: find.byWidgetPredicate(
+                          (w) =>
+                              w is CustomPaint &&
+                              w.foregroundPainter is ScrollbarPainter,
+                        ),
+                      )
+                      .first,
+                )
+                .foregroundPainter!
+            as ScrollbarPainter;
+    Offset? hit;
+    for (var y = 4.0; y < rect.height && hit == null; y++) {
+      for (var x = rect.width - 16; x < rect.width; x++) {
+        if (painter.hitTest(Offset(x, y)) == true) {
+          hit = rect.topLeft + Offset(x + 2, y + 6);
+          break;
+        }
+      }
+    }
+    expect(hit, isNotNull, reason: '真实 painter 握把必须可命中');
+    final gesture = await tester.startGesture(
+      hit!,
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveBy(const Offset(0, 20));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, 4));
+    await tester.pump();
+    expect(pos.pixels, greaterThan(0), reason: '必须实际命中握把并开始滚动');
+    final extents = <double>{};
+    for (final direction in [1.0, -1.0]) {
+      for (var step = 0; step < 45; step++) {
+        final before = pos.pixels;
+        extents.add(pos.maxScrollExtent);
+        await gesture.moveBy(Offset(0, direction * 4));
+        await tester.pump();
+        final delta = pos.pixels - before;
+        expect(
+          delta.abs(),
+          lessThanOrEqualTo(ratio * 4 * 1.5 + 1),
+          reason:
+              'step=$step dir=$direction before=$before extent=${pos.maxScrollExtent}',
+        );
+        expect(
+          delta * direction,
+          greaterThanOrEqualTo(-1),
+          reason: '握把移动不可反向跳位',
+        );
+      }
+    }
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+    expect(pos.isScrollingNotifier.value, isFalse, reason: '取消握把手势必须释放 Drag');
+    await hover.removePointer();
+    expect(extents.length, greaterThan(1), reason: '必须跨越非等高懒加载窗口');
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('完整应用: 流式增长中握把拖拽观察位移', (tester) async {
@@ -84,10 +196,11 @@ void main() {
 
     // 定位滚动条握把
     final scrollbarElement = find
-        .byType(Scrollbar)
+        .byWidgetPredicate((w) => w is RawScrollbar)
         .evaluate()
         .firstWhere(
-          (element) => (element.widget as Scrollbar).controller == controller,
+          (element) =>
+              (element.widget as RawScrollbar).controller == controller,
         );
     final scrollbarRect = tester.getRect(
       find.byWidget(scrollbarElement.widget),
@@ -99,7 +212,8 @@ void main() {
       18.0,
       trackExtent,
     );
-    final thumbOffset = (position.pixels / position.maxScrollExtent) *
+    final thumbOffset =
+        (position.pixels / position.maxScrollExtent) *
         (trackExtent - thumbExtent);
     final thumbCenter = Offset(
       scrollbarRect.right - 3,
@@ -150,6 +264,7 @@ void main() {
       await gesture.moveBy(const Offset(0, -4));
       await tester.pump();
       final after = controller.position.pixels;
+      expect(after, lessThan(before), reason: '必须真实拖动握把，不能零位移假通过');
       moves.add(after - before);
     }
 
@@ -166,7 +281,8 @@ void main() {
     // 框架不变量检查在 addTearDown 之前跑，手动即时复位
     debugDefaultTargetPlatformOverride = null;
 
-    final ratio = controller.position.maxScrollExtent /
+    final ratio =
+        controller.position.maxScrollExtent /
         controller.position.viewportDimension;
     final maxJump = moves.map((d) => d.abs()).reduce((a, b) => a > b ? a : b);
     expect(maxJump, lessThan(ratio * 4 * 3));
