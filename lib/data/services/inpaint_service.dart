@@ -740,6 +740,8 @@ abstract final class InpaintService {
         requestHeight: geometry.requestHeight,
         cropX: crop.x,
         cropY: crop.y,
+        cropWidth: crop.width,
+        cropHeight: crop.height,
         mask:
             (sourceMask != null &&
                 sourceMask.width == originalSource.width &&
@@ -774,8 +776,9 @@ abstract final class InpaintService {
 
     final cropX = task.cropX.clamp(0, math.max(0, origW - 1)).toInt();
     final cropY = task.cropY.clamp(0, math.max(0, origH - 1)).toInt();
-    final targetW = (origW - cropX).clamp(1, origW).toInt();
-    final targetH = (origH - cropY).clamp(1, origH).toInt();
+    // 必须与请求准备使用同一个裁剪矩形，不能扩展到原图右下边界。
+    final targetW = task.cropWidth.clamp(1, origW - cropX);
+    final targetH = task.cropHeight.clamp(1, origH - cropY);
 
     // 1. 生成补丁归一到请求尺寸 (服务端一般原尺寸返回，此处仅兜底)
     final requestPatchRgba =
@@ -831,13 +834,20 @@ abstract final class InpaintService {
         maskedPatch[i] = requestPatchRgba[i];
         maskedPatch[i + 1] = requestPatchRgba[i + 1];
         maskedPatch[i + 2] = requestPatchRgba[i + 2];
-        maskedPatch[i + 3] = compositeMask.rgba[i + 3];
+        maskedPatch[i + 3] =
+            (requestPatchRgba[i + 3] * compositeMask.rgba[i + 3] + 127) ~/ 255;
       }
 
       // 5. 缩回裁剪框尺寸后以 alpha 混合盖回原图
       final cropPatchRgba = (reqW == targetW && reqH == targetH)
           ? maskedPatch
-          : resizeRgbaCubic(maskedPatch, reqW, reqH, targetW, targetH);
+          : resizeRgbaCubicAlphaAware(
+              maskedPatch,
+              reqW,
+              reqH,
+              targetW,
+              targetH,
+            );
       blendAlphaRect(
         out,
         origW,
@@ -850,20 +860,13 @@ abstract final class InpaintService {
       );
     } else {
       // 无蒙版：整块裁剪区域回贴 (保持旧行为兜底，direct 整像素替换)
-      final resizedPatchRgba =
-          (task.patchWidth == targetW && task.patchHeight == targetH)
-          ? patchRgba
-          : resizeRgbaCubic(
-              requestPatchRgba,
-              (task.patchWidth == reqW && task.patchHeight == reqH)
-                  ? reqW
-                  : task.patchWidth,
-              (task.patchWidth == reqW && task.patchHeight == reqH)
-                  ? reqH
-                  : task.patchHeight,
-              targetW,
-              targetH,
-            );
+      final resizedPatchRgba = resizeRgbaCubicAlphaAware(
+        requestPatchRgba,
+        reqW,
+        reqH,
+        targetW,
+        targetH,
+      );
       copyRect(
         out,
         origW,
@@ -1050,6 +1053,8 @@ class _FocusedCompositeTask {
   final int requestHeight;
   final int cropX;
   final int cropY;
+  final int cropWidth;
+  final int cropHeight;
   final IsolateBytes? mask;
   final int? maskWidth;
   final int? maskHeight;
@@ -1065,6 +1070,8 @@ class _FocusedCompositeTask {
     required this.requestHeight,
     required this.cropX,
     required this.cropY,
+    required this.cropWidth,
+    required this.cropHeight,
     this.mask,
     this.maskWidth,
     this.maskHeight,

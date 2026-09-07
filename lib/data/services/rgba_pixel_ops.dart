@@ -148,8 +148,9 @@ double _catmullRom(double d) {
   return 0.0;
 }
 
-/// 把 src 矩形以非预乘 alpha 混合盖进 dst (BlendMode.alpha 语义)：
-/// out = dst * (1 - a) + src * a，四通道同式
+/// 把非预乘 RGBA 源矩形以 source-over 混合盖进目标。
+/// 输出 alpha = srcA + dstA × (1 - srcA)，RGB 按覆盖率归一化；
+/// 不能把 alpha 当作颜色插值，否则不透明底图的羽化边缘会变透明。
 void blendAlphaRect(
   Uint8List dst,
   int dstWidth,
@@ -177,12 +178,14 @@ void blendAlphaRect(
         dst[d + 3] = src[s + 3];
         continue;
       }
-      for (var c = 0; c < 4; c++) {
-        dst[d + c] = (dst[d + c] * (1 - a) + src[s + c] * a).round().clamp(
-          0,
-          255,
-        );
+      final dstCoverage = dst[d + 3] / 255.0 * (1 - a);
+      final outAlpha = a + dstCoverage;
+      for (var c = 0; c < 3; c++) {
+        dst[d + c] = ((dst[d + c] * dstCoverage + src[s + c] * a) / outAlpha)
+            .round()
+            .clamp(0, 255);
       }
+      dst[d + 3] = (outAlpha * 255).round().clamp(0, 255);
     }
   }
 }

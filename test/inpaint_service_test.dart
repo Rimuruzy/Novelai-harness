@@ -136,6 +136,98 @@ void main() {
       },
     );
 
+    for (final withMask in [false, true]) {
+      for (final patchSize in [(256, 192), (128, 96)]) {
+        test('焦点回贴保持裁剪框和图案位置 mask=$withMask patch=$patchSize', () async {
+          const width = 240;
+          const height = 180;
+          const crop = Rect.fromLTWH(24, 32, 80, 48);
+          const geometry = InpaintGeometry(
+            focusBounds: crop,
+            contextCrop: crop,
+            requestWidth: 256,
+            requestHeight: 192,
+            scale: 4,
+          );
+          final source = await solidPng(width, height, 30, 30, 30);
+          final (pw, ph) = patchSize;
+          final patch = solidRgba(pw, ph, 0, 200, 0);
+          // 左半绿、右半蓝：不能只验证纯色中心，否则拉伸错位也会通过。
+          for (var y = 0; y < ph; y++) {
+            for (var x = pw ~/ 2; x < pw; x++) {
+              final i = (y * pw + x) * 4;
+              patch[i + 1] = 0;
+              patch[i + 2] = 200;
+            }
+          }
+          final result = (await decodeToRawRgba(
+            await InpaintService.compositeFocusedResult(
+              originalSourceBytes: source,
+              generatedPatchBytes: await encodeRawRgbaToPng(patch, pw, ph),
+              geometry: geometry,
+              sourceMask: withMask
+                  ? InpaintService.buildSourceMask(
+                      sourceWidth: width,
+                      sourceHeight: height,
+                    )
+                  : null,
+            ),
+          ))!;
+          expect(result.width, width);
+          expect(result.height, height);
+          for (var y = 0; y < height; y++) {
+            for (var x = 0; x < width; x++) {
+              final i = result.offsetOf(x, y);
+              if (!crop.contains(Offset(x.toDouble(), y.toDouble()))) {
+                expect(result.rgba.sublist(i, i + 4), [
+                  30,
+                  30,
+                  30,
+                  255,
+                ], reason: '裁剪框外 ($x,$y) 不应改变');
+              }
+            }
+          }
+          expect(result.rgba[result.offsetOf(44, 56) + 1], 200);
+          expect(result.rgba[result.offsetOf(84, 56) + 2], 200);
+        });
+      }
+    }
+
+    test('焦点羽化保持不透明且同色回贴无白环', () async {
+      final source = await solidPng(256, 192, 32, 32, 32);
+      const geometry = InpaintGeometry(
+        focusBounds: Rect.fromLTWH(72, 64, 48, 32),
+        contextCrop: Rect.fromLTWH(40, 32, 112, 96),
+        requestWidth: 448,
+        requestHeight: 384,
+        scale: 4,
+      );
+      final result = (await decodeToRawRgba(
+        await InpaintService.compositeFocusedResult(
+          originalSourceBytes: source,
+          generatedPatchBytes: await solidPng(448, 384, 32, 32, 32),
+          geometry: geometry,
+          sourceMask: InpaintService.buildSourceMask(
+            sourceWidth: 256,
+            sourceHeight: 192,
+            selectionRect: const Rect.fromLTWH(
+              72 / 256,
+              64 / 192,
+              48 / 256,
+              32 / 192,
+            ),
+          ),
+        ),
+      ))!;
+      for (var i = 0; i < result.rgba.length; i += 4) {
+        expect(result.rgba[i + 3], 255, reason: '羽化不得降低原图 alpha');
+        for (var c = 0; c < 3; c++) {
+          expect(result.rgba[i + c], closeTo(32, 1));
+        }
+      }
+    });
+
     test('InpaintParams JSON 往返序列化正确', () {
       const params = InpaintParams(
         mode: InpaintMode.focus,
