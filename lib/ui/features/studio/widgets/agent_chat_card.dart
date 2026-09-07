@@ -49,8 +49,14 @@ class AgentChatCardState extends State<AgentChatCard> {
   int _followEpoch = 0;
   bool _followSuspended = false;
 
-  /// Widget 配置缓存上限，逐条淘汰，避免清空整批缓存造成重建尖峰。
+  /// 消息 Widget 配置缓存上限，逐条淘汰，避免清空整批缓存造成重建尖峰。
   static const int _maxCachedMessages = 600;
+
+  /// 用户最近一次主动滚动 (滚轮信号 / 拖拽) 的时间戳。
+  /// 流式底部跟随在此后的 [_followCooldown] 内保持沉默，
+  /// 防止跟随跳转与用户刚发起的滚轮滑行互相打架把视口强拽回底部。
+  DateTime? _lastUserScrollIntentAt;
+  static const Duration _followCooldown = Duration(milliseconds: 350);
 
   @override
   void dispose() {
@@ -62,6 +68,7 @@ class AgentChatCardState extends State<AgentChatCard> {
 
   void _scrollToBottom({bool animate = true}) {
     _followSuspended = false;
+    _lastUserScrollIntentAt = null;
     _scrollToBottomAfterFrames(
       animate: animate,
       remainingFrames: 3,
@@ -69,8 +76,8 @@ class AgentChatCardState extends State<AgentChatCard> {
     );
   }
 
-  /// 呖后跳到底部。SliverList 的 maxScrollExtent 是估算值，新内容
-  /// (尤其是被 Widget 缓存跳过重建的那一帧) 的 extent 可能晚一帧才结算，
+  /// 退后一帧跳到底部。SliverList 的 maxScrollExtent 对新内容可能是估算值
+  /// (尤其是被 Widget 缓存跳过重建的那一帧，extent 可能晚一帧才结算)，
   /// 因此跳完后再链式校验最多 [remainingFrames] 帧，直到估算稳定。
   void _scrollToBottomAfterFrames({
     required bool animate,
@@ -95,7 +102,7 @@ class AgentChatCardState extends State<AgentChatCard> {
         } else {
           _scrollController.jumpTo(pos.maxScrollExtent);
         }
-        // 静默跳转同样链式校验后续帧的估算修正 (动画模式由流式跟随逻辑兑底)，
+        // 静默跳转同样链式校验后续帧的估算修正 (动画模式由流式跟随逻辑兜底)，
         // 不论本轮是否跳转都续链，防止估算晚结算导致停在旧位置
         if (remainingFrames > 0) {
           _scrollToBottomAfterFrames(
@@ -111,34 +118,50 @@ class AgentChatCardState extends State<AgentChatCard> {
   /// 上次跟随跳转的目标像素 (链式校验期间判断用户是否主动上翻)
   double? _lastFollowTarget;
 
+  /// 底部跟随是否被用户滚动意图静默：主动滚动冷却期内，或用户已明确
+  /// 暂停跟随 (上翻查看历史) 时，任何程序化跳转一律不发。
+  bool get _followMutedByUser {
+    if (_followSuspended) return true;
+    final last = _lastUserScrollIntentAt;
+    return last != null &&
+        DateTime.now().difference(last) < _followCooldown;
+  }
+
+  /// 记录一次用户主动滚动意图 (滚轮信号 / 指针按下 / 拖拽开始)
+  void _noteUserScrollIntent() {
+    _lastUserScrollIntentAt = DateTime.now();
+    _pauseFollowing();
+  }
+
   /// 仅在 Agent 正在流式输出时生效：
-  /// - 若当前视口已在底部 (距底部 32px 以内)，随新内容输出自动跟随保持在底部；
-  /// - 若用户向上滚动翻看历史 (距底部 > 32px)，则保持在原地不打扰，绝不强拉。
-  ///   跟随跳转后链式校验最多 3 帧，兑底 maxScrollExtent 估算延迟结算。
+  /// - 若当前视口已在底部 (距底部 64px 以内)，随新内容输出自动跟随保持在底部；
+  /// - 若用户向上滚动翻看历史或刚发起过滚动 (冷却期)，保持原地绝不强拉。
+  ///   跟随跳转后链式校验最多 4 帧，兜底 maxScrollExtent 估算延迟结算。
   void _autoScrollOnStream() {
-    if (_followSuspended || !widget.viewModel.isChatStreaming) return;
+    if (_followMutedByUser || !widget.viewModel.isChatStreaming) return;
     if (!_scrollController.hasClients ||
         !_scrollController.position.hasContentDimensions) {
       return;
     }
-    // 估算 maxScrollExtent 结算滞后一到两帧，"跳到底"后可能仍差几十像素，
-    // 臂时阈值放宽到 64px；链内用户上翻判定仍按 32px 严格把关
+    // 估算 maxScrollExtent 结算滞后一到两帧，“跳到底”后可能仍差几十像素，
+    // 此时阈值放宽到 64px；链内用户上翻判定仍按 32px 严格把关
     final isAtBottom = _scrollController.position.extentAfter <= 64.0;
     if (!isAtBottom) return;
 
-    // 臂定时记录基准：后续帧里像素显著低于它即为用户主动上翻
+    // 跳底时记录基准：后续帧里像素显著低于它即为用户主动上翻
     _lastFollowTarget = _scrollController.position.pixels;
     _followStreamBottom(remainingFrames: 4, epoch: ++_followEpoch);
   }
 
   /// 流式底部跟随的链式校验：双向夹到 maxScrollExtent
-  /// (既补上晚结算的增量，也纠正跳到过高估算值后的回落)
+  /// (既补上晚结算的增量，也纠正跳到过高估算值后的回落)；
+  /// 用户滚动冷却期 / 显式暂停期间保持沉默，绝不打断用户手势滑行。
   void _followStreamBottom({required int remainingFrames, required int epoch}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
           epoch != _followEpoch ||
           _currentView != _AgentCardView.chat ||
-          _followSuspended ||
+          _followMutedByUser ||
           !widget.viewModel.isChatStreaming ||
           !_scrollController.hasClients) {
         return;
@@ -177,7 +200,7 @@ class AgentChatCardState extends State<AgentChatCard> {
     if (notification.depth != 0) return false;
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
-      _pauseFollowing();
+      _noteUserScrollIntent();
     }
     if (notification is ScrollEndNotification &&
         notification.metrics.extentAfter <= 1) {
@@ -273,10 +296,10 @@ class AgentChatCardState extends State<AgentChatCard> {
             // 对话消息流展示区域
             Expanded(
               child: Listener(
-                onPointerDown: (_) => _pauseFollowing(),
+                onPointerDown: (_) => _noteUserScrollIntent(),
                 onPointerUp: (_) => _resumeFollowingAtBottom(),
                 onPointerCancel: (_) => _resumeFollowingAtBottom(),
-                onPointerSignal: (_) => _pauseFollowing(),
+                onPointerSignal: (_) => _noteUserScrollIntent(),
                 child: NotificationListener<ScrollNotification>(
                   onNotification: _onScrollNotification,
                   child: _buildMessageList(),

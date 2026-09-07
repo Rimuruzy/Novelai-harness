@@ -46,7 +46,12 @@ class _SmoothWheelScrollPosition extends ScrollPositionWithSingleContext {
   /// 单次滚轮滑动的时长与曲线
   static const Duration _glideDuration = Duration(milliseconds: 160);
 
-  /// 上次滚轮滑行的目标像素 (仅在 DrivenScrollActivity 滑行期间有效)
+  /// 本控制器发起的滚轮滑行活动与累计目标 (成对记录)。
+  /// 活动一旦被外部 animateTo/jumpTo 顶替，配对立即失效，
+  /// 防止把过期目标误当滚轮基准造成视口瞬移。
+  ScrollActivity? _glideActivity;
+
+  /// 上次滚轮滑行的累计目标像素 (仅在 [_glideActivity] 存活期间有效)
   double? _wheelTarget;
 
   @override
@@ -64,18 +69,27 @@ class _SmoothWheelScrollPosition extends ScrollPositionWithSingleContext {
       return;
     }
 
-    // 滑行中: 从上次目标继续累加；静止: 从当前像素起步
-    final bool gliding = activity is DrivenScrollActivity;
+    // 仅在「本控制器先前发起的滚轮滑行」尚未结束时才从累计目标续加。
+    // 外部 animateTo (如发送消息后的底部跟随动画) 同样表现为
+    // DrivenScrollActivity，误认会沿用早已过期的 _wheelTarget 幻影目标，
+    // 把视口瞬移到完全无关的位置
+    final bool gliding =
+        activity is DrivenScrollActivity && identical(activity, _glideActivity);
     final double base = gliding ? (_wheelTarget ?? pixels) : pixels;
     final double target = (base + delta)
         .clamp(minScrollExtent, maxScrollExtent)
         .toDouble();
-    _wheelTarget = target;
 
-    if (!gliding && target == pixels) return;
+    if (!gliding && target == pixels) {
+      _wheelTarget = target;
+      return;
+    }
+    _wheelTarget = target;
     goIdle();
     unawaited(
       animateTo(target, duration: _glideDuration, curve: Curves.easeOutCubic),
     );
+    // animateTo 同步 beginActivity，此刻 activity 即本次滑行的身份令牌
+    _glideActivity = activity;
   }
 }
