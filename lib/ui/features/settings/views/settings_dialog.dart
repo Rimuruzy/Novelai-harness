@@ -126,8 +126,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final screenSize = MediaQuery.sizeOf(context);
-    final dialogWidth = (screenSize.width * 0.8).clamp(520.0, 1600.0);
-    final dialogHeight = (screenSize.height * 0.8).clamp(400.0, 1200.0);
+    // 窄屏 (手机)：弹窗近乎全屏；宽屏维持 0.8 比例与最小 520 的桌面约束
+    final isNarrow = screenSize.width < 700;
+    final dialogWidth = isNarrow
+        ? screenSize.width * 0.96
+        : (screenSize.width * 0.8).clamp(520.0, 1600.0);
+    final dialogHeight = isNarrow
+        ? screenSize.height * 0.9
+        : (screenSize.height * 0.8).clamp(400.0, 1200.0);
 
     return Dialog(
       backgroundColor: colors.cardBackground,
@@ -141,11 +147,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
         child: SizedBox(
           width: dialogWidth,
           height: dialogHeight,
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. 左侧导航栏 (Settings Categories)
-              _buildSidebar(context),
+              // 1. 导航：窄屏收成顶部横条，宽屏保持左侧纵栏
+              _buildSidebar(context, isNarrow: isNarrow),
 
               // 2. 右侧配置详情内容区
               Expanded(
@@ -180,9 +186,49 @@ class _SettingsDialogState extends State<SettingsDialog> {
     );
   }
 
-  /// 左侧导航栏
-  Widget _buildSidebar(BuildContext context) {
+  /// 左侧导航栏：窄屏收成顶部横向图标条，宽屏维持纵向栏
+  Widget _buildSidebar(BuildContext context, {required bool isNarrow}) {
     final colors = context.colors;
+
+    if (isNarrow) {
+      final tabs = const [
+        (0, Icons.tune_outlined, 'General'),
+        (1, Icons.smart_toy_outlined, 'Models'),
+        (2, Icons.psychology_outlined, 'Presets'),
+        (3, Icons.layers_outlined, 'Defaults'),
+        (4, Icons.receipt_long_outlined, 'Bill'),
+      ];
+      return Container(
+        decoration: BoxDecoration(
+          color: colors.elevatedBackground,
+          border: Border(
+            bottom: BorderSide(color: colors.borderDefault),
+          ),
+        ),
+        child: Row(
+          children: [
+            for (final (index, icon, label) in tabs)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 6,
+                  ),
+                  child: AppNavTile(
+                    title: label,
+                    icon: icon,
+                    isSelected: _activeTabIndex == index,
+                    horizontal: true,
+                    dense: true,
+                    onTap: () => setState(() => _activeTabIndex = index),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       width: 200,
       decoration: BoxDecoration(

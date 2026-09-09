@@ -56,6 +56,12 @@ class AppNavTile extends StatefulWidget {
   /// 内边距，默认水平 10，垂直 8
   final EdgeInsetsGeometry padding;
 
+  /// 窄屏横向模式：图标在上、标题在下 (忽略副标题与徽标)
+  final bool horizontal;
+
+  /// 紧凑模式：配合 horizontal 使用，缩小文字
+  final bool dense;
+
   const AppNavTile({
     super.key,
     required this.title,
@@ -72,6 +78,8 @@ class AppNavTile extends StatefulWidget {
     this.trailing,
     this.radius = AppRadius.md,
     this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    this.horizontal = false,
+    this.dense = false,
   });
 
   @override
@@ -126,13 +134,36 @@ class _AppNavTileState extends State<AppNavTile> {
             hoverColor: Colors.transparent,
             splashColor: resolvedActiveBg.withValues(alpha: 0.3),
             child: Container(
-              padding: widget.padding,
+              padding: widget.horizontal
+                  ? const EdgeInsets.symmetric(horizontal: 2, vertical: 6)
+                  : widget.padding,
               decoration: BoxDecoration(
                 color: effectiveBg,
                 borderRadius: BorderRadius.circular(widget.radius),
                 border: Border.all(color: effectiveBorderColor, width: 1.0),
               ),
-              child: Row(
+              child: widget.horizontal
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.icon != null)
+                          Icon(widget.icon, size: 18, color: iconFg),
+                        const SizedBox(height: 3),
+                        Text(
+                          widget.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: widget.dense ? 11 : 13,
+                            fontWeight: widget.isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: effectiveFg,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
                 children: [
                   if (widget.icon != null) ...[
                     Icon(widget.icon, size: 16, color: iconFg),
