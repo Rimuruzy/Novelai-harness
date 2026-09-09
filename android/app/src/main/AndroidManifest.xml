@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 正式版联网权限：Flutter 默认只把 INTERNET 声明在 debug/profile 清单，release 包必须显式声明 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="novelai_harness"
         android:name="${applicationName}"
